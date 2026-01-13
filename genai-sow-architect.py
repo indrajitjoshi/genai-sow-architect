@@ -88,9 +88,9 @@ def create_docx_logic(text_content, branding_info):
     logo_table.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
     # Define widths as requested
-    cust_width = Inches(1.5)
-    oneture_width = Inches(2.0)
-    aws_width = Inches(1.4)
+    cust_width = Inches(1.4)
+    oneture_width = Inches(2.2)
+    aws_width = Inches(1.3)
     
     # Cell 1: Customer Logo
     cell_cust = logo_table.rows[0].cells[0]
