@@ -68,7 +68,7 @@ def create_docx_logic(text_content, branding_info):
         except:
             doc.add_paragraph("aws partner network").alignment = WD_ALIGN_PARAGRAPH.LEFT
 
-    doc.add_paragraph("\n" * 3) # Spacing
+    doc.add_paragraph("\n" * 3)
     
     title_p = doc.add_paragraph()
     title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -82,12 +82,12 @@ def create_docx_logic(text_content, branding_info):
     run.font.size = Pt(14)
     run.font.color.rgb = RGBColor(0x64, 0x74, 0x8B)
     
-    doc.add_paragraph("\n" * 4) # Spacing to logos
+    doc.add_paragraph("\n" * 4)
     
     logo_table = doc.add_table(rows=1, cols=3)
     logo_table.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
-    # logo sizes: Customer 1.4, Oneture 2.2, AWS 1.3
+    # Logo sizes as requested
     cust_width = Inches(1.4)
     oneture_width = Inches(2.2)
     aws_width = Inches(1.3)
@@ -116,7 +116,7 @@ def create_docx_logic(text_content, branding_info):
         except:
             cell_aws.paragraphs[0].add_run("AWS Advanced")
 
-    doc.add_paragraph("\n" * 4) # Spacing to date
+    doc.add_paragraph("\n" * 4)
     
     date_p = doc.add_paragraph()
     date_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -124,6 +124,7 @@ def create_docx_logic(text_content, branding_info):
     run.font.size = Pt(12)
     run.font.bold = True
     
+    # --- END PAGE 1 ---
     doc.add_page_break()
     
     # --- PAGE 2 ONWARDS: CONTENT ---
@@ -145,7 +146,7 @@ def create_docx_logic(text_content, branding_info):
             i += 1
             continue
         
-        # Force Section 2 to Page 3 (Ending Page 2 isolation)
+        # End Page 2 isolation: Move Section 2 to Page 3
         if in_toc_section and (line.startswith("# 2") or ("PROJECT OVERVIEW" in line.upper() and line.startswith("#"))):
             doc.add_page_break()
             in_toc_section = False
@@ -176,7 +177,8 @@ def create_docx_logic(text_content, branding_info):
         if not line:
             doc.add_paragraph("")
         elif line.startswith('# '):
-            doc.add_heading(line[2:], level=1)
+            text = line[2:].strip().replace('**', '').replace('*', '')
+            doc.add_heading(text, level=1)
         elif line.startswith('## '):
             text = line[3:].strip().replace('**', '').replace('*', '')
             p = doc.add_heading(text, level=2)
@@ -193,9 +195,12 @@ def create_docx_logic(text_content, branding_info):
                 p.paragraph_format.left_indent = Inches(0.4)
         else:
             p = doc.add_paragraph(line)
-            # Indent numbered items in TOC
+            # Formatting for TOC sub-items
             if in_toc_section and len(line) > 3 and line[0].isdigit() and (line[1] == '.' or (line[1].isdigit() and line[2] == '.')):
                  p.paragraph_format.left_indent = Inches(0.4)
+            # Check for Assumptions/Dependencies segregation labels
+            if "DEPENDENCIES:" in line.upper() or "ASSUMPTIONS:" in line.upper():
+                p.runs[0].bold = True
         i += 1
             
     bio = io.BytesIO()
@@ -282,7 +287,7 @@ st.header("2. Objectives & Stakeholders")
 st.subheader("🎯 2.1 Objective")
 objective = st.text_area(
     "Define the core business objective:", 
-    placeholder="e.g., Development of a Gen AI based WIMO Bot to demonstrate feasibility...",
+    placeholder="e.g., Development of a Gen AI based WIMO Bot...",
     height=120
 )
 outcomes = st.multiselect(
@@ -340,12 +345,11 @@ if st.button("✨ Generate SOW Document", type="primary", use_container_width=Tr
 
             MANDATORY CONTENT RULES:
             - NO filler text or introductory sentences between headers 2, 2.1, 2.2, and 2.3.
-            - Section 2 must start with 2.1 Objective.
-            - Follow immediately with 2.2 Project Sponsor(s) / Stakeholder(s) / Project Team.
-            - In Section 2.2, provide a clear sub-header for each table (Partner Executive Sponsor, Customer Executive Sponsor, AWS Executive Sponsor, Project Escalation Contacts).
-            - DO NOT use markdown bolding (**) or multiple hash signs for these table sub-headers. Use plain text.
-            - Ensure there are NO unnecessary asterisks (*) anywhere in the document.
-            - Section 2.3 follows immediately after the tables.
+            - Section 2 must start immediately with 2.1 Objective.
+            - Section 2.2 follows immediately with the provided tables.
+            - Section 2.3 must have two clearly labeled subsections: "Dependencies:" and "Assumptions:". Segregate them well with bulleted points.
+            - DO NOT add extra headers like "### Partner Sponsor" before each table in Section 2.2. Use plain text sub-labels if needed.
+            - Ensure there are NO unnecessary asterisks (*) or markdown bolding marks inside headings or transitions.
 
             INPUT DETAILS:
             - Engagement Type: {engagement_type}
@@ -364,7 +368,7 @@ if st.button("✨ Generate SOW Document", type="primary", use_container_width=Tr
             
             payload = {
                 "contents": [{"parts": [{"text": prompt_text}]}],
-                "systemInstruction": {"parts": [{"text": "You are a senior Solutions Architect. You generate detailed SOW documents. Strictly follow numbering and ordering. No conversational filler between subsections. No extra asterisks."}]}
+                "systemInstruction": {"parts": [{"text": "You are a senior Solutions Architect. You generate detailed SOW documents. Strictly follow numbering. No filler text between subsections. No extra asterisks."}]}
             }
             
             try:
