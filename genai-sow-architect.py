@@ -83,40 +83,43 @@ def create_docx_logic(text_content, branding_info):
     
     doc.add_paragraph("\n" * 4) # Spacing to logos
     
-    # 3. Logo Row: Customer | Oneture | AWS Advanced Tier (SINGLE LINE)
+    # 3. Logo Row: Customer | Oneture | AWS Advanced Tier (SINGLE LINE, SIMILAR SIZE)
     logo_table = doc.add_table(rows=1, cols=3)
     logo_table.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
+    # Define a standard width for consistency
+    img_width = Inches(1.1)
+    
     # Cell 1: Customer Logo
+    cell_cust = logo_table.rows[0].cells[0]
+    p_cust = cell_cust.paragraphs[0]
+    p_cust.alignment = WD_ALIGN_PARAGRAPH.CENTER
     if branding_info.get('customer_logo_bytes'):
-        cell_cust = logo_table.rows[0].cells[0]
-        p_cust = cell_cust.paragraphs[0]
-        p_cust.alignment = WD_ALIGN_PARAGRAPH.CENTER
         try:
             run = p_cust.add_run()
-            run.add_picture(io.BytesIO(branding_info['customer_logo_bytes']), width=Inches(1.1))
+            run.add_picture(io.BytesIO(branding_info['customer_logo_bytes']), width=img_width)
         except:
             p_cust.add_run("[Customer Logo]")
             
     # Cell 2: Oneture Logo
+    cell_one = logo_table.rows[0].cells[1]
+    p_one = cell_one.paragraphs[0]
+    p_one.alignment = WD_ALIGN_PARAGRAPH.CENTER
     if branding_info.get('oneture_logo_bytes'):
-        cell_one = logo_table.rows[0].cells[1]
-        p_one = cell_one.paragraphs[0]
-        p_one.alignment = WD_ALIGN_PARAGRAPH.CENTER
         try:
             run = p_one.add_run()
-            run.add_picture(io.BytesIO(branding_info['oneture_logo_bytes']), width=Inches(1.1))
+            run.add_picture(io.BytesIO(branding_info['oneture_logo_bytes']), width=img_width)
         except:
             p_one.add_run("ONETURE")
 
     # Cell 3: AWS Advanced Logo
+    cell_aws = logo_table.rows[0].cells[2]
+    p_aws = cell_aws.paragraphs[0]
+    p_aws.alignment = WD_ALIGN_PARAGRAPH.CENTER
     if branding_info.get('aws_adv_logo_bytes'):
-        cell_aws = logo_table.rows[0].cells[2]
-        p_aws = cell_aws.paragraphs[0]
-        p_aws.alignment = WD_ALIGN_PARAGRAPH.CENTER
         try:
             run = p_aws.add_run()
-            run.add_picture(io.BytesIO(branding_info['aws_adv_logo_bytes']), width=Inches(1.1))
+            run.add_picture(io.BytesIO(branding_info['aws_adv_logo_bytes']), width=img_width)
         except:
             p_aws.add_run("AWS Advanced")
 
