@@ -119,25 +119,35 @@ def create_docx_logic(text_content, branding_info):
     lines = text_content.split('\n')
     i = 0
     in_toc_section = False
+    toc_already_added = False
 
     while i < len(lines):
         line = lines[i].strip()
-        
-        # Force Page Break for "2 PROJECT OVERVIEW" to start on Page 3
-        # Clean line check to catch variants like "# 2 PROJECT OVERVIEW" or "2 PROJECT OVERVIEW"
-        clean_check = line.replace('#', '').strip().upper()
-        if "2 PROJECT OVERVIEW" in clean_check:
-            doc.add_page_break()
-            in_toc_section = False
-
-        # Start Section 1 (TOC)
-        if "1 TABLE OF CONTENTS" in clean_check:
-            in_toc_section = True
-            doc.add_heading("1 TABLE OF CONTENTS", level=1)
+        if not line:
+            doc.add_paragraph("")
             i += 1
             continue
 
-        # Global markdown artifact cleanup (remove unnecessary asterisks)
+        clean_check = line.replace('#', '').strip().upper()
+        
+        # 1. Handle Table of Contents detection
+        if "1 TABLE OF CONTENTS" in clean_check and not toc_already_added:
+            in_toc_section = True
+            toc_already_added = True
+            # Let the standard heading logic handle the text if it starts with #
+            # If not, we handle it here
+            if not line.startswith('#'):
+                doc.add_heading("1 TABLE OF CONTENTS", level=1)
+                i += 1
+                continue
+
+        # 2. Handle Project Overview Transition (FORCE BREAK TO PAGE 3)
+        # Only break if it's a Header line, to avoid breaking inside the TOC list itself
+        if line.startswith('#') and "2 PROJECT OVERVIEW" in clean_check:
+            doc.add_page_break()
+            in_toc_section = False
+
+        # Global markdown artifact cleanup (remove unnecessary asterisks/bolding marks)
         line_clean = line.replace('**', '').replace('*', '')
 
         # Markdown Table Detection
@@ -163,9 +173,8 @@ def create_docx_logic(text_content, branding_info):
                                 row_cells[idx].text = c_text
             continue
 
-        if not line:
-            doc.add_paragraph("")
-        elif line.startswith('# '):
+        # Standard Markdown Element Parsing
+        if line.startswith('# '):
             text = line[2:].strip().replace('**', '').replace('*', '')
             doc.add_heading(text, level=1)
         elif line.startswith('## '):
@@ -184,6 +193,7 @@ def create_docx_logic(text_content, branding_info):
             if in_toc_section:
                 p.paragraph_format.left_indent = Inches(0.4)
         else:
+            # Body text or TOC list items
             p = doc.add_paragraph(line_clean)
             if in_toc_section and len(line_clean) > 3 and line_clean[0].isdigit():
                  p.paragraph_format.left_indent = Inches(0.4)
