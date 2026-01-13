@@ -2,6 +2,8 @@ import streamlit as st
 import requests
 import json
 from docx import Document
+from docx.shared import Inches, Pt
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from io import BytesIO
 
 # --- CONFIGURATION ---
@@ -19,15 +21,20 @@ st.markdown("""
     .stButton>button { border-radius: 8px; font-weight: 600; }
     .stTextArea textarea { border-radius: 10px; }
     .stTextInput input { border-radius: 8px; }
-    .block-container { padding-top: 2rem; }
+    .block-container { padding-top: 1.5rem; }
     .sow-preview {
         background-color: white;
-        padding: 30px;
-        border-radius: 10px;
+        padding: 40px;
+        border-radius: 12px;
         border: 1px solid #e2e8f0;
-        font-family: 'Inter', sans-serif;
-        line-height: 1.6;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        line-height: 1.7;
+        color: #1e293b;
+        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
     }
+    h1, h2, h3 { color: #0f172a; }
+    .stTabs [data-baseweb="tab-list"] { gap: 24px; }
+    .stTabs [data-baseweb="tab"] { height: 50px; white-space: pre-wrap; font-weight: 600; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -39,18 +46,55 @@ if 'generated_sow' not in st.session_state:
 def clear_sow():
     st.session_state.generated_sow = ""
 
-# Function to create Word document
+# Function to create Word document with Table support
 def create_docx(text_content):
     doc = Document()
-    title = doc.add_heading('Scope of Work Document', 0)
-    title.alignment = 1 # Center
     
-    for line in text_content.split('\n'):
-        line = line.strip()
+    # Set default font
+    style = doc.styles['Normal']
+    style.font.name = 'Arial'
+    style.font.size = Pt(11)
+
+    title = doc.add_heading('Scope of Work Document', 0)
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    
+    lines = text_content.split('\n')
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        
+        # Table detection
+        if line.startswith('|') and i + 1 < len(lines) and lines[i+1].strip().startswith('|---'):
+            # Find the end of the table
+            table_lines = []
+            while i < len(lines) and lines[i].strip().startswith('|'):
+                table_lines.append(lines[i].strip())
+                i += 1
+            
+            if len(table_lines) > 2:
+                # Extract headers and data
+                headers = [c.strip() for c in table_lines[0].split('|') if c.strip()]
+                rows = []
+                for r in table_lines[2:]:
+                    rows.append([c.strip() for c in r.split('|') if c.strip()])
+                
+                # Add table to doc
+                table = doc.add_table(rows=1, cols=len(headers))
+                table.style = 'Table Grid'
+                hdr_cells = table.rows[0].cells
+                for idx, h in enumerate(headers):
+                    hdr_cells[idx].text = h
+                
+                for r_data in rows:
+                    row_cells = table.add_row().cells
+                    for idx, c_text in enumerate(r_data):
+                        if idx < len(row_cells):
+                            row_cells[idx].text = c_text
+            continue
+
         if not line:
             doc.add_paragraph("")
-            continue
-        if line.startswith('# '):
+        elif line.startswith('# '):
             doc.add_heading(line[2:], level=1)
         elif line.startswith('## '):
             doc.add_heading(line[3:], level=2)
@@ -60,18 +104,19 @@ def create_docx(text_content):
             doc.add_paragraph(line[2:], style='List Bullet')
         else:
             doc.add_paragraph(line)
+        i += 1
             
     bio = BytesIO()
     doc.save(bio)
     return bio.getvalue()
 
-# --- SIDEBAR: SETTINGS & PROJECT INTAKE ---
+# --- SIDEBAR: PROJECT INTAKE ---
 with st.sidebar:
     st.image("https://img.icons8.com/fluency/96/artificial-intelligence.png", width=60)
     st.title("SOW Architect")
     st.caption("Enterprise POC/MVP Edition")
     
-    with st.expander("🔑 API Configuration", expanded=True):
+    with st.expander("🔑 API Configuration", expanded=False):
         api_key = st.text_input("Gemini API Key", type="password", help="Enter your Google AI Studio API Key")
     
     st.divider()
@@ -93,7 +138,7 @@ with st.sidebar:
     
     final_solution = solution_type
     if solution_type == "Other (Please specify)":
-        final_solution = st.text_input("Specify Solution Name")
+        final_solution = st.text_input("Specify Solution Name", placeholder="Enter specific solution...")
 
     # 1.2 Engagement Type
     engagement_options = [
@@ -112,7 +157,7 @@ with st.sidebar:
     
     final_industry = industry_type
     if industry_type == "Other (specify)":
-        final_industry = st.text_input("Specify Industry")
+        final_industry = st.text_input("Specify Industry", placeholder="Enter specific domain...")
 
     duration = st.text_input("Timeline / Duration", "4 Weeks")
     
@@ -121,38 +166,49 @@ with st.sidebar:
 
 # --- MAIN UI ---
 st.title("🚀 GenAI Scope of Work Architect")
-st.markdown("Bridge business objectives and technical implementation with enterprise-standard SOW documentation.")
+st.markdown("Generate professional enterprise-standard SOW documents using AWS GenAI best practices.")
 
 # --- STEP 2: DETAILS & STAKEHOLDERS ---
 st.header("2. Objectives & Stakeholders")
-col_c, col_d = st.columns(2, gap="medium")
 
-with col_c:
-    objective = st.text_area(
-        "Business Objective", 
-        placeholder="e.g., Validate the feasibility of an AI powered Ads Banner Compliance tool to reduce manual review effort.",
-        height=150
-    )
-    outcomes = st.multiselect(
-        "Expected Success Metrics", 
-        ["Reduced Response Time", "Automated SOP Mapping", "Cost Savings", "Higher Accuracy", "Metadata Richness", "Revenue Growth", "Security Compliance"],
-        default=["Higher Accuracy", "Cost Savings"]
-    )
+# Objective Section
+st.subheader("🎯 Business Context")
+objective = st.text_area(
+    "Define the core business objective and problem statement:", 
+    placeholder="e.g., Validate the feasibility of an AI powered Ads Banner Compliance tool to reduce manual review effort and improve accuracy.",
+    height=120
+)
 
-with col_d:
-    st.markdown("**Project Team**")
-    st_p1, st_p2 = st.columns(2)
-    with st_p1:
-        p_name = st.text_input("Partner Lead", "Gaurav Kankaria")
-        p_title = st.text_input("Partner Title", "Head of Analytics & ML")
-    with st_p2:
-        c_name = st.text_input("Customer Lead", "Cheten Dev")
-        c_title = st.text_input("Customer Title", "Head of Product Design")
-    
+outcomes = st.multiselect(
+    "Select expected success metrics:", 
+    ["Reduced Response Time", "Automated SOP Mapping", "Cost Savings", "Higher Accuracy", "Metadata Richness", "Revenue Growth", "Security Compliance", "Scalability", "Integration Feasibility"],
+    default=["Higher Accuracy", "Cost Savings"]
+)
+
+st.divider()
+
+# Stakeholder Grid - Rectifying clutter by using a cleaner grouping
+st.subheader("👥 Project Stakeholders")
+p_col, c_col, a_col = st.columns(3, gap="large")
+
+with p_col:
+    st.info("**Partner Team (Oneture)**")
+    p_name = st.text_input("Partner Lead Name", "Gaurav Kankaria")
+    p_title = st.text_input("Partner Lead Title", "Head of Analytics & ML")
+
+with c_col:
+    st.info("**Customer Team**")
+    c_name = st.text_input("Customer Lead Name", "Cheten Dev")
+    c_title = st.text_input("Customer Lead Title", "Head of Product Design")
+
+with a_col:
+    st.info("**AWS Team**")
     aws_name = st.text_input("AWS Executive Sponsor", "Anubhav Sood")
+    aws_title = st.text_input("AWS Role", "AWS Account Executive")
 
 # --- GENERATION TRIGGER ---
-if st.button("✨ Architect Scope of Work", type="primary", use_container_width=True):
+st.write("")
+if st.button("✨ Generate Professional SOW Document", type="primary", use_container_width=True):
     if not api_key:
         st.warning("⚠️ Please provide a Gemini API Key in the sidebar.")
     elif not objective:
@@ -161,37 +217,35 @@ if st.button("✨ Architect Scope of Work", type="primary", use_container_width=
         with st.spinner(f"Architecting SOW for {final_solution}..."):
             url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key={api_key}"
             
-            # This prompt is engineered to mirror the structure of Nykaa/Jubilant SOWs
             prompt_text = f"""
             Generate a formal enterprise Scope of Work (SOW) for {final_solution} in {final_industry}.
             
             INPUT DETAILS:
-            - Engagement Type: {engagement_type}
-            - Primary Objective: {objective}
-            - Success Metrics: {', '.join(outcomes)}
+            - Engagement: {engagement_type}
+            - Objective: {objective}
+            - Outcomes: {', '.join(outcomes)}
             - Timeline: {duration}
             - Partner Team: {p_name} ({p_title})
             - Customer Team: {c_name} ({c_title})
-            - AWS Sponsor: {aws_name}
+            - AWS Team: {aws_name} ({aws_title})
             
             STRICT STRUCTURE (MANDATORY):
             1 TABLE OF CONTENTS
             2 PROJECT OVERVIEW
               2.1 OBJECTIVE
-              2.2 PROJECT SPONSOR(S) / STAKEHOLDER(S) / PROJECT TEAM (Include table with Name, Title, Email/Contact Info)
-              2.3 ASSUMPTIONS & DEPENDENCIES (Separate Dependencies and Assumptions)
-              2.4 PROJECT SUCCESS CRITERIA (Numbered list)
-            3 SCOPE OF WORK – TECHNICAL PROJECT PLAN (Include Infrastructure Setup, Core Workflows, and Backend Components)
-            4 SOLUTION ARCHITECTURE / ARCHITECTURAL DIAGRAM (Describe AWS-native services like Bedrock, S3, Lambda, OpenSearch)
-            5 RESOURCES & COST ESTIMATES (Include POC Development cost model and AWS Infrastructure cost assumptions)
+              2.2 PROJECT SPONSOR(S) / STAKEHOLDER(S) / PROJECT TEAM (Include a clean Markdown table with Name, Title, and Email/Contact)
+              2.3 ASSUMPTIONS & DEPENDENCIES (Separate lists for Dependencies and Assumptions)
+              2.4 PROJECT SUCCESS CRITERIA (Numbered list mapped to outcomes)
+            3 SCOPE OF WORK – TECHNICAL PROJECT PLAN (Detail phases like Infrastructure Setup, Core Workflows, and Backend Components)
+            4 SOLUTION ARCHITECTURE / ARCHITECTURAL DIAGRAM (Describe AWS-native stack: Bedrock, S3, Lambda, OpenSearch, etc.)
+            5 RESOURCES & COST ESTIMATES (Include POC cost model and AWS infra assumptions)
 
-            Maintain the professional, executive-level consulting tone found in Oneture/AWS partner SOWs. 
-            Output the response in ONLY Markdown.
+            Use a professional, consulting tone. Output ONLY Markdown.
             """
             
             payload = {
                 "contents": [{"parts": [{"text": prompt_text}]}],
-                "systemInstruction": {"parts": [{"text": "You are a senior Solutions Architect at Oneture. You generate detailed SOWs that follow the specific formatting of provided Nykaa and Jubilant PDF examples."}]}
+                "systemInstruction": {"parts": [{"text": "You are a senior Solutions Architect at Oneture. You generate detailed SOWs that mirror the professional formatting and clarity of the Nykaa and Jubilant PDF examples provided."}]}
             }
             
             try:
@@ -207,17 +261,16 @@ if st.button("✨ Architect Scope of Work", type="primary", use_container_width=
 # --- STEP 3: EDIT & EXPORT ---
 if st.session_state.generated_sow:
     st.divider()
-    st.header("3. Review & Refine")
+    st.header("3. Review & Export")
     
     tab_edit, tab_preview = st.tabs(["✍️ Document Editor", "📄 Visual Preview"])
     
     with tab_edit:
         edited_sow = st.text_area(
-            label="Markdown Editor",
+            label="Edit the content below before downloading:",
             value=st.session_state.generated_sow,
-            height=600,
-            key="sow_editor",
-            label_visibility="collapsed"
+            height=700,
+            key="sow_editor"
         )
         st.session_state.generated_sow = edited_sow
     
@@ -238,4 +291,4 @@ if st.session_state.generated_sow:
             use_container_width=True
         )
     with exp_col2:
-        st.success("✨ SOW document is ready. Changes made in the editor will be reflected in the Word download.")
+        st.success("✨ SOW document generated. Tables have been formatted for Word compatibility.")
