@@ -49,7 +49,9 @@ st.markdown("""
 def create_docx_logic(text_content, branding_info):
     """
     Generates the Word document with strict page isolation and markdown cleanup.
-    Ensures Section 1 (TOC) is on Page 2 and Section 2 starts on Page 3.
+    Page 1: Cover
+    Page 2: Table of Contents (Isolated)
+    Page 3: Project Overview (2.1 -> 2.2 -> 2.3 sequence)
     """
     from docx import Document
     from docx.shared import Inches, Pt, RGBColor
@@ -110,7 +112,7 @@ def create_docx_logic(text_content, branding_info):
     run.font.size = Pt(12)
     run.font.bold = True
     
-    # Break to Page 2 (TOC)
+    # End Page 1
     doc.add_page_break()
     
     # --- CONTENT PROCESSING ---
@@ -126,33 +128,32 @@ def create_docx_logic(text_content, branding_info):
     while i < len(lines):
         line = lines[i].strip()
         if not line:
+            # Add small spacing to keep document flow
+            if i > 0 and lines[i-1].strip():
+                doc.add_paragraph("")
             i += 1
             continue
 
-        clean_check = line.replace('#', '').strip().upper()
-        
-        # 1. Handle PROJECT OVERVIEW (MUST START ON PAGE 3)
-        if "2 PROJECT OVERVIEW" in clean_check:
+        # Prepare strings for structure detection
+        clean_text = line.replace('#', '').strip().replace('**', '').replace('*', '')
+        upper_text = clean_text.upper()
+
+        # 1. Page Break Trigger: Section 2 MUST start on Page 3
+        if line.startswith('#') and "2 PROJECT OVERVIEW" in upper_text:
             doc.add_page_break()
             in_toc_section = False
-            # Clean text for header
-            header_text = line.replace('#', '').strip().replace('**', '').replace('*', '')
-            doc.add_heading(header_text, level=1)
+            doc.add_heading(clean_text, level=1)
             i += 1
             continue
 
-        # 2. Handle Table of Contents detection
-        if "1 TABLE OF CONTENTS" in clean_check:
+        # 2. Section 1 Trigger: TOC MUST stay on Page 2
+        if "1 TABLE OF CONTENTS" in upper_text:
             if not toc_already_added:
                 in_toc_section = True
                 toc_already_added = True
-                header_text = line.replace('#', '').strip().replace('**', '').replace('*', '')
-                doc.add_heading(header_text, level=1)
+                doc.add_heading("1 TABLE OF CONTENTS", level=1)
             i += 1
             continue
-
-        # Global markdown artifact cleanup
-        line_clean = line.replace('**', '').replace('*', '')
 
         # Markdown Table Detection
         if line.startswith('|') and i + 1 < len(lines) and lines[i+1].strip().startswith('|'):
@@ -175,38 +176,32 @@ def create_docx_logic(text_content, branding_info):
                         for idx, c_text in enumerate(r_data):
                             if idx < len(row_cells):
                                 row_cells[idx].text = c_text
-                # Add spacing after table to keep output distinct
                 doc.add_paragraph("")
             continue
 
-        # Standard Markdown Element Parsing
+        # Standard Elements Parsing
         if line.startswith('# '):
-            text = line[2:].strip().replace('**', '').replace('*', '')
-            doc.add_heading(text, level=1)
+            doc.add_heading(clean_text, level=1)
         elif line.startswith('## '):
-            text = line[3:].strip().replace('**', '').replace('*', '')
-            p = doc.add_heading(text, level=2)
+            p = doc.add_heading(clean_text, level=2)
             if in_toc_section:
                 p.paragraph_format.left_indent = Inches(0.4)
         elif line.startswith('### '):
-            text = line[4:].strip().replace('**', '').replace('*', '')
-            p = doc.add_heading(text, level=3)
+            p = doc.add_heading(clean_text, level=3)
             if in_toc_section:
                 p.paragraph_format.left_indent = Inches(0.8)
         elif line.startswith('- ') or line.startswith('* '):
-            text = line[2:].strip().replace('**', '').replace('*', '')
-            p = doc.add_paragraph(text, style='List Bullet')
+            p = doc.add_paragraph(clean_text, style='List Bullet')
             if in_toc_section:
                 p.paragraph_format.left_indent = Inches(0.4)
         else:
-            # Body text or TOC list items
-            p = doc.add_paragraph(line_clean)
-            if in_toc_section and len(line_clean) > 3 and line_clean[0].isdigit():
+            # Handle plain body text or TOC sub-items
+            p = doc.add_paragraph(clean_text)
+            if in_toc_section and len(clean_text) > 3 and clean_text[0].isdigit():
                  p.paragraph_format.left_indent = Inches(0.4)
             
-            # Segregation logic for sub-categories in Section 2.2 and 2.3
-            uppercase_line = line_clean.upper()
-            if any(key in uppercase_line for key in ["DEPENDENCIES:", "ASSUMPTIONS:", "SPONSOR:", "CONTACTS:"]):
+            # Segregation bolding logic for key category labels
+            if any(key in upper_text for key in ["DEPENDENCIES:", "ASSUMPTIONS:", "SPONSOR:", "CONTACTS:"]):
                 p.runs[0].bold = True
         i += 1
             
@@ -279,11 +274,11 @@ st.header("📸 Cover Page Branding")
 brand_col1, brand_col2 = st.columns(2)
 with brand_col1:
     aws_pn_logo = st.file_uploader("Top Left: AWS Partner Network Logo", type=['png', 'jpg', 'jpeg'], key="aws_pn")
-    customer_logo = st.file_uploader("Logo Row - Slot 1: Customer Logo", type=['png', 'jpg', 'jpeg'], key="cust_logo")
+    customer_logo = st.file_uploader("Slot 1: Customer Logo", type=['png', 'jpg', 'jpeg'], key="cust_logo")
 
 with brand_col2:
-    oneture_logo = st.file_uploader("Logo Row - Slot 2: Oneture Logo", type=['png', 'jpg', 'jpeg'], key="one_logo")
-    aws_adv_logo = st.file_uploader("Logo Row - Slot 3: AWS Advanced Logo", type=['png', 'jpg', 'jpeg'], key="aws_adv")
+    oneture_logo = st.file_uploader("Slot 2: Oneture Logo", type=['png', 'jpg', 'jpeg'], key="one_logo")
+    aws_adv_logo = st.file_uploader("Slot 3: AWS Advanced Logo", type=['png', 'jpg', 'jpeg'], key="aws_adv")
     doc_date = st.date_input("Document Date", date.today())
 
 st.divider()
@@ -340,7 +335,7 @@ if st.button("✨ Generate SOW Document", type="primary", use_container_width=Tr
             Generate a COMPLETE formal enterprise Scope of Work (SOW) for {final_solution} in {final_industry}.
             
             MANDATORY STRUCTURE:
-            1 TABLE OF CONTENTS (Clean list with indented sub-items)
+            1 TABLE OF CONTENTS (Detailed indented list)
             2 PROJECT OVERVIEW
               2.1 OBJECTIVE
               2.2 PROJECT SPONSOR(S) / STAKEHOLDER(S) / PROJECT TEAM
@@ -352,11 +347,11 @@ if st.button("✨ Generate SOW Document", type="primary", use_container_width=Tr
 
             CONTENT RULES:
             - NO filler text or introductory sentences between headers 2, 2.1, 2.2, and 2.3.
-            - Section 2 must start immediately with 2.1 Objective.
-            - Section 2.2 must keep all stakeholder sections distinct. Precede each provided table with a plain text heading: Partner Executive Sponsor, Customer Executive Sponsor, AWS Executive Sponsor, and Project Escalation Contacts.
+            - Section 2 must start fresh and immediately with 2.1 Objective.
+            - Section 2.2 must keep all stakeholder sections distinct with provided tables.
             - Section 2.3 must clearly segregate into "Dependencies:" and "Assumptions:" labels with bulleted lists.
             - Remove ALL unnecessary asterisks (*) or markdown bolding marks (**) inside text or headings. 
-            - Use plain text for headers and labels. No markdown symbols in the output document content.
+            - Use plain text output only for document content. No markdown symbols.
 
             INPUT DETAILS:
             - Engagement Type: {engagement_type}
@@ -375,7 +370,7 @@ if st.button("✨ Generate SOW Document", type="primary", use_container_width=Tr
             
             payload = {
                 "contents": [{"parts": [{"text": prompt_text}]}],
-                "systemInstruction": {"parts": [{"text": "You are a senior Solutions Architect. You generate detailed SOW documents. Strictly follow numbering. NO filler text. NO markdown bolding marks or asterisks in the output text. Keep all tables and their category headings distinct and segregated."}]}
+                "systemInstruction": {"parts": [{"text": "You are a senior Solutions Architect. You generate detailed SOW documents. Strictly follow numbering. NO filler text. NO markdown bolding marks or asterisks in the output text."}]}
             }
             
             try:
