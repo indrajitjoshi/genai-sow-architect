@@ -51,36 +51,23 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# Initialize session states
-if 'generated_sow' not in st.session_state:
-    st.session_state.generated_sow = ""
-
-if 'stakeholders' not in st.session_state:
-    st.session_state.stakeholders = {
-        "Partner": pd.DataFrame([{"Name": "Gaurav Kankaria", "Title": "Head of Analytics & ML", "Email": "gaurav.kankaria@oneture.com"}]),
-        "Customer": pd.DataFrame([{"Name": "Cheten Dev", "Title": "Head of Product Design", "Email": "cheten.dev@nykaa.com"}]),
-        "AWS": pd.DataFrame([{"Name": "Anubhav Sood", "Title": "AWS Account Executive", "Email": "anbhsood@amazon.com"}]),
-        "Escalation": pd.DataFrame([
-            {"Name": "Omkar Dhavalikar", "Title": "AI/ML Lead", "Email": "omkar.dhavalikar@oneture.com"},
-            {"Name": "Gaurav Kankaria", "Title": "Head of Analytics and AIML", "Email": "gaurav.kankaria@oneture.com"}
-        ])
-    }
-
-def clear_sow():
-    st.session_state.generated_sow = ""
-
-def create_docx(text_content, branding_data):
+# --- CACHED UTILITIES ---
+@st.cache_data
+def get_docx_bytes(text_content, branding_info):
+    """
+    Generates the Word document. Cached to prevent redundant processing 
+    during UI reruns unless content actually changes.
+    """
     doc = Document()
     
     # --- PAGE 1: COVER PAGE ---
-    
     # 1. AWS Partner Network Logo (TOP LEFT)
-    if branding_data['aws_pn_logo']:
+    if branding_info.get('aws_pn_logo_bytes'):
         try:
             p_top = doc.add_paragraph()
             p_top.alignment = WD_ALIGN_PARAGRAPH.LEFT
             run = p_top.add_run()
-            run.add_picture(branding_data['aws_pn_logo'], width=Inches(1.0))
+            run.add_picture(BytesIO(branding_info['aws_pn_logo_bytes']), width=Inches(1.0))
         except:
             p = doc.add_paragraph("aws partner network")
             p.alignment = WD_ALIGN_PARAGRAPH.LEFT
@@ -90,7 +77,7 @@ def create_docx(text_content, branding_data):
     # 2. Solution Name & Subtitle (CENTER)
     title_p = doc.add_paragraph()
     title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = title_p.add_run(branding_data['solution_name'])
+    run = title_p.add_run(branding_info['solution_name'])
     run.font.size = Pt(26)
     run.font.bold = True
     
@@ -103,12 +90,12 @@ def create_docx(text_content, branding_data):
     doc.add_paragraph("\n")
     
     # 3. Customer Logo (CENTER)
-    if branding_data['customer_logo']:
+    if branding_info.get('customer_logo_bytes'):
         try:
             p_logo = doc.add_paragraph()
             p_logo.alignment = WD_ALIGN_PARAGRAPH.CENTER
             run = p_logo.add_run()
-            run.add_picture(branding_data['customer_logo'], width=Inches(2.0))
+            run.add_picture(BytesIO(branding_info['customer_logo_bytes']), width=Inches(2.0))
         except:
             p_err = doc.add_paragraph("[Customer Logo Image]")
             p_err.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -123,10 +110,10 @@ def create_docx(text_content, branding_data):
     cell_oneture = bottom_table.rows[0].cells[0]
     p_oneture = cell_oneture.paragraphs[0]
     p_oneture.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    if branding_data['oneture_logo']:
+    if branding_info.get('oneture_logo_bytes'):
         try:
             run = p_oneture.add_run()
-            run.add_picture(branding_data['oneture_logo'], width=Inches(1.2))
+            run.add_picture(BytesIO(branding_info['oneture_logo_bytes']), width=Inches(1.2))
         except:
             p_oneture.add_run("ONETURE").font.bold = True
     
@@ -134,17 +121,17 @@ def create_docx(text_content, branding_data):
     cell_aws = bottom_table.rows[0].cells[1]
     p_aws = cell_aws.paragraphs[0]
     p_aws.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    if branding_data['aws_adv_logo']:
+    if branding_info.get('aws_adv_logo_bytes'):
         try:
             run = p_aws.add_run()
-            run.add_picture(branding_data['aws_adv_logo'], width=Inches(1.2))
+            run.add_picture(BytesIO(branding_info['aws_adv_logo_bytes']), width=Inches(1.2))
         except:
             p_aws.add_run("aws PARTNER Advanced Tier").font.bold = True
 
     # 5. Date (BOTTOM CENTER)
     date_p = doc.add_paragraph()
     date_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = date_p.add_run(branding_data['doc_date'].strftime("%d %B %Y"))
+    run = date_p.add_run(branding_info['doc_date_str'])
     run.font.size = Pt(12)
     run.font.bold = True
     
@@ -159,14 +146,11 @@ def create_docx(text_content, branding_data):
     i = 0
     while i < len(lines):
         line = lines[i].strip()
-        
-        # Table detection
         if line.startswith('|') and i + 1 < len(lines) and lines[i+1].strip().startswith('|'):
             table_lines = []
             while i < len(lines) and lines[i].strip().startswith('|'):
                 table_lines.append(lines[i].strip())
                 i += 1
-            
             if len(table_lines) >= 3:
                 data_lines = [l for l in table_lines if not set(l).issubset({'|', '-', ' ', ':'})]
                 if len(data_lines) >= 2:
@@ -176,7 +160,6 @@ def create_docx(text_content, branding_data):
                     hdr_cells = table.rows[0].cells
                     for idx, h in enumerate(headers):
                         hdr_cells[idx].text = h
-                    
                     for row_str in data_lines[1:]:
                         row_cells = table.add_row().cells
                         r_data = [c.strip() for c in row_str.split('|') if c.strip()]
@@ -202,6 +185,24 @@ def create_docx(text_content, branding_data):
     bio = BytesIO()
     doc.save(bio)
     return bio.getvalue()
+
+# --- INITIALIZATION ---
+if 'generated_sow' not in st.session_state:
+    st.session_state.generated_sow = ""
+
+if 'stakeholders' not in st.session_state:
+    st.session_state.stakeholders = {
+        "Partner": pd.DataFrame([{"Name": "Gaurav Kankaria", "Title": "Head of Analytics & ML", "Email": "gaurav.kankaria@oneture.com"}]),
+        "Customer": pd.DataFrame([{"Name": "Cheten Dev", "Title": "Head of Product Design", "Email": "cheten.dev@nykaa.com"}]),
+        "AWS": pd.DataFrame([{"Name": "Anubhav Sood", "Title": "AWS Account Executive", "Email": "anbhsood@amazon.com"}]),
+        "Escalation": pd.DataFrame([
+            {"Name": "Omkar Dhavalikar", "Title": "AI/ML Lead", "Email": "omkar.dhavalikar@oneture.com"},
+            {"Name": "Gaurav Kankaria", "Title": "Head of Analytics and AIML", "Email": "gaurav.kankaria@oneture.com"}
+        ])
+    }
+
+def clear_sow():
+    st.session_state.generated_sow = ""
 
 # --- SIDEBAR: PROJECT INTAKE ---
 with st.sidebar:
@@ -250,12 +251,12 @@ st.info("Upload the four logos required for the cover page title layout.")
 
 brand_col1, brand_col2 = st.columns(2)
 with brand_col1:
-    aws_pn_logo = st.file_uploader("Top Left: AWS Partner Network Logo", type=['png', 'jpg', 'jpeg'])
-    customer_logo = st.file_uploader("Center: Customer Logo", type=['png', 'jpg', 'jpeg'])
+    aws_pn_logo = st.file_uploader("Top Left: AWS Partner Network Logo", type=['png', 'jpg', 'jpeg'], key="aws_pn")
+    customer_logo = st.file_uploader("Center: Customer Logo", type=['png', 'jpg', 'jpeg'], key="cust_logo")
 
 with brand_col2:
-    oneture_logo = st.file_uploader("Bottom Left: Oneture Logo", type=['png', 'jpg', 'jpeg'])
-    aws_adv_logo = st.file_uploader("Bottom Right: AWS Advanced Tier Logo", type=['png', 'jpg', 'jpeg'])
+    oneture_logo = st.file_uploader("Bottom Left: Oneture Logo", type=['png', 'jpg', 'jpeg'], key="one_logo")
+    aws_adv_logo = st.file_uploader("Bottom Right: AWS Advanced Tier Logo", type=['png', 'jpg', 'jpeg'], key="aws_adv")
     doc_date = st.date_input("Document Date", date.today())
 
 st.divider()
@@ -278,7 +279,7 @@ outcomes = st.multiselect(
 
 st.divider()
 
-# 2.2 PROJECT SPONSOR(S) / STAKEHOLDER(S)
+# 2.2 PROJECT STAKEHOLDERS
 st.subheader("👥 2.2 Project Sponsor(s) / Stakeholder(s) / Project Team")
 col_team1, col_team2 = st.columns(2)
 
@@ -362,8 +363,16 @@ if st.session_state.generated_sow:
     st.divider()
     st.header("3. Review & Export")
     tab_edit, tab_preview = st.tabs(["✍️ Document Editor", "📄 Visual Preview"])
+    
     with tab_edit:
-        st.session_state.generated_sow = st.text_area(label="Modify generated content:", value=st.session_state.generated_sow, height=700, key="sow_editor")
+        # Use a localized state to avoid constant script re-runs while typing
+        st.session_state.generated_sow = st.text_area(
+            label="Modify generated content:", 
+            value=st.session_state.generated_sow, 
+            height=700, 
+            key="sow_editor"
+        )
+    
     with tab_preview:
         st.markdown(f'<div class="sow-preview">', unsafe_allow_html=True)
         st.markdown(st.session_state.generated_sow)
@@ -371,14 +380,24 @@ if st.session_state.generated_sow:
     
     st.write("")
     
-    branding_data = {
+    # Pack branding data for the cached function
+    # We pass bytes instead of the uploader object to ensure cacheability
+    branding_info = {
         'solution_name': final_solution,
-        'aws_pn_logo': aws_pn_logo,
-        'customer_logo': customer_logo,
-        'oneture_logo': oneture_logo,
-        'aws_adv_logo': aws_adv_logo,
-        'doc_date': doc_date
+        'aws_pn_logo_bytes': aws_pn_logo.getvalue() if aws_pn_logo else None,
+        'customer_logo_bytes': customer_logo.getvalue() if customer_logo else None,
+        'oneture_logo_bytes': oneture_logo.getvalue() if oneture_logo else None,
+        'aws_adv_logo_bytes': aws_adv_logo.getvalue() if aws_adv_logo else None,
+        'doc_date_str': doc_date.strftime("%d %B %Y")
     }
     
-    docx_data = create_docx(st.session_state.generated_sow, branding_data)
-    st.download_button(label="📥 Download Microsoft Word (.docx)", data=docx_data, file_name=f"SOW_{final_solution.replace(' ', '_')}.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
+    # Generate bytes via cached function
+    docx_data = get_docx_bytes(st.session_state.generated_sow, branding_info)
+    
+    st.download_button(
+        label="📥 Download Microsoft Word (.docx)", 
+        data=docx_data, 
+        file_name=f"SOW_{final_solution.replace(' ', '_')}.docx", 
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", 
+        use_container_width=True
+    )
