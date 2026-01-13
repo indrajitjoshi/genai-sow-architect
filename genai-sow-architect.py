@@ -178,13 +178,12 @@ def create_docx_logic(text_content, branding_info):
         elif line.startswith('# '):
             doc.add_heading(line[2:], level=1)
         elif line.startswith('## '):
-            # Indentation for subsections in TOC or general content
-            text = line[3:].strip()
+            text = line[3:].strip().replace('**', '').replace('*', '')
             p = doc.add_heading(text, level=2)
             if in_toc_section:
                 p.paragraph_format.left_indent = Inches(0.4)
         elif line.startswith('### '):
-            text = line[4:].strip()
+            text = line[4:].strip().replace('**', '').replace('*', '')
             p = doc.add_heading(text, level=3)
             if in_toc_section:
                 p.paragraph_format.left_indent = Inches(0.8)
@@ -193,9 +192,8 @@ def create_docx_logic(text_content, branding_info):
             if in_toc_section:
                 p.paragraph_format.left_indent = Inches(0.4)
         else:
-            # Handle plain text lines (especially sub-items in TOC)
             p = doc.add_paragraph(line)
-            # If line starts with a numeric index (like 2.1, 2.2) and we are in TOC, indent it
+            # Indent numbered items in TOC
             if in_toc_section and len(line) > 3 and line[0].isdigit() and (line[1] == '.' or (line[1].isdigit() and line[2] == '.')):
                  p.paragraph_format.left_indent = Inches(0.4)
         i += 1
@@ -266,8 +264,6 @@ st.title("🚀 GenAI Scope of Work Architect")
 
 # --- STEP 0: COVER PAGE BRANDING ---
 st.header("📸 Cover Page Branding")
-st.info("Upload logos for the cover page row. Row Order: Customer Logo, Oneture Logo, AWS Logo.")
-
 brand_col1, brand_col2 = st.columns(2)
 with brand_col1:
     aws_pn_logo = st.file_uploader("Top Left: AWS Partner Network Logo", type=['png', 'jpg', 'jpeg'], key="aws_pn")
@@ -343,11 +339,13 @@ if st.button("✨ Generate SOW Document", type="primary", use_container_width=Tr
             5 RESOURCES & COST ESTIMATES
 
             MANDATORY CONTENT RULES:
+            - NO filler text or introductory sentences between headers 2, 2.1, 2.2, and 2.3.
             - Section 2 must start with 2.1 Objective.
-            - Follow immediately with 2.2 Project Sponsor(s) using the provided tables.
-            - Follow immediately with 2.3 Assumptions & Dependencies.
-            - DO NOT add any introductory filler text or "In this section..." sentences between these headers. 
-            - In section 2.2, insert ONLY the tables. DO NOT add extra headers like "### Partner Sponsor" before each table.
+            - Follow immediately with 2.2 Project Sponsor(s) / Stakeholder(s) / Project Team.
+            - In Section 2.2, provide a clear sub-header for each table (Partner Executive Sponsor, Customer Executive Sponsor, AWS Executive Sponsor, Project Escalation Contacts).
+            - DO NOT use markdown bolding (**) or multiple hash signs for these table sub-headers. Use plain text.
+            - Ensure there are NO unnecessary asterisks (*) anywhere in the document.
+            - Section 2.3 follows immediately after the tables.
 
             INPUT DETAILS:
             - Engagement Type: {engagement_type}
@@ -366,7 +364,7 @@ if st.button("✨ Generate SOW Document", type="primary", use_container_width=Tr
             
             payload = {
                 "contents": [{"parts": [{"text": prompt_text}]}],
-                "systemInstruction": {"parts": [{"text": "You are a senior Solutions Architect. You generate detailed SOW documents. Strictly follow numbering and ordering. No conversational filler between subsections."}]}
+                "systemInstruction": {"parts": [{"text": "You are a senior Solutions Architect. You generate detailed SOW documents. Strictly follow numbering and ordering. No conversational filler between subsections. No extra asterisks."}]}
             }
             
             try:
