@@ -87,8 +87,9 @@ def create_docx_logic(text_content, branding_info):
     logo_table = doc.add_table(rows=1, cols=3)
     logo_table.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
-    # Define a standard width for consistency
-    img_width = Inches(1.1)
+    # Define standard widths
+    standard_width = Inches(1.1)
+    oneture_width = Inches(1.35) # Slightly increased as requested
     
     # Cell 1: Customer Logo
     cell_cust = logo_table.rows[0].cells[0]
@@ -97,7 +98,7 @@ def create_docx_logic(text_content, branding_info):
     if branding_info.get('customer_logo_bytes'):
         try:
             run = p_cust.add_run()
-            run.add_picture(io.BytesIO(branding_info['customer_logo_bytes']), width=img_width)
+            run.add_picture(io.BytesIO(branding_info['customer_logo_bytes']), width=standard_width)
         except:
             p_cust.add_run("[Customer Logo]")
             
@@ -108,7 +109,7 @@ def create_docx_logic(text_content, branding_info):
     if branding_info.get('oneture_logo_bytes'):
         try:
             run = p_one.add_run()
-            run.add_picture(io.BytesIO(branding_info['oneture_logo_bytes']), width=img_width)
+            run.add_picture(io.BytesIO(branding_info['oneture_logo_bytes']), width=oneture_width)
         except:
             p_one.add_run("ONETURE")
 
@@ -119,7 +120,7 @@ def create_docx_logic(text_content, branding_info):
     if branding_info.get('aws_adv_logo_bytes'):
         try:
             run = p_aws.add_run()
-            run.add_picture(io.BytesIO(branding_info['aws_adv_logo_bytes']), width=img_width)
+            run.add_picture(io.BytesIO(branding_info['aws_adv_logo_bytes']), width=standard_width)
         except:
             p_aws.add_run("AWS Advanced")
 
