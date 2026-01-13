@@ -72,81 +72,92 @@ def clear_sow():
 def create_docx(text_content, branding_data):
     doc = Document()
     
-    # --- PAGE 1: COVER PAGE (STRICT PDF LAYOUT) ---
+    # --- PAGE 1: COVER PAGE (REDUCED SIZES FOR SINGLE PAGE FIT) ---
     
-    # 1. AWS Partner Network Logo (TOP LEFT)
-    if branding_data['aws_pn_logo']:
+    # 1. AWS Partner Network Logo (TOP LEFT) - FIXED
+    # Note: Expects local file named 'aws_partner_network.png'
+    aws_pn_path = "aws_partner_network.png"
+    p_top = doc.add_paragraph()
+    p_top.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    if os.path.exists(aws_pn_path):
         try:
-            p_top = doc.add_paragraph()
-            p_top.alignment = WD_ALIGN_PARAGRAPH.LEFT
             run = p_top.add_run()
-            run.add_picture(branding_data['aws_pn_logo'], width=Inches(1.5))
+            run.add_picture(aws_pn_path, width=Inches(1.1))
         except:
-            p = doc.add_paragraph("aws partner network")
-            p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            p_top.add_run("aws partner network").font.bold = True
+    else:
+        p_top.add_run("aws partner network").font.bold = True
 
-    doc.add_paragraph("\n" * 4) # Gap before title
+    doc.add_paragraph("\n" * 2) # Reduced vertical spacing
     
     # 2. Solution Name & Subtitle (CENTER)
     title_p = doc.add_paragraph()
     title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = title_p.add_run(branding_data['solution_name'])
-    run.font.size = Pt(28)
+    run.font.size = Pt(22) # Slightly smaller font
     run.font.bold = True
     
     subtitle_p = doc.add_paragraph()
     subtitle_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = subtitle_p.add_run("Scope of Work Document")
-    run.font.size = Pt(16)
+    run.font.size = Pt(14)
     run.font.color.rgb = RGBColor(0x64, 0x74, 0x8B) # Slate grey
     
-    doc.add_paragraph("\n" * 2)
+    doc.add_paragraph("\n") # Minimal spacing
     
-    # 3. Customer Logo (CENTER)
+    # 3. Customer Logo (CENTER) - MODIFIABLE
     if branding_data['customer_logo']:
         try:
             p_logo = doc.add_paragraph()
             p_logo.alignment = WD_ALIGN_PARAGRAPH.CENTER
             run = p_logo.add_run()
-            run.add_picture(branding_data['customer_logo'], width=Inches(2.5))
+            run.add_picture(branding_data['customer_logo'], width=Inches(1.8)) # Reduced size
         except:
-            p_err = doc.add_paragraph("[Customer Logo]")
+            p_err = doc.add_paragraph("[Customer Logo Image]")
             p_err.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
-    doc.add_paragraph("\n" * 4) # Gap to bottom
+    doc.add_paragraph("\n" * 3) # Reduced gap to bottom branding
     
-    # 4. Oneture (Bottom Left) and AWS Advanced Tier (Bottom Right)
+    # 4. Oneture (Bottom Left) and AWS Advanced Tier (Bottom Right) - FIXED
+    # Note: Expects 'oneture_logo.png' and 'aws_advanced_tier.png'
     bottom_table = doc.add_table(rows=1, cols=2)
     bottom_table.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    
+    # Remove table borders visually if possible (standard grid used here for alignment)
     
     # Oneture Logo (Left Cell)
     cell_oneture = bottom_table.rows[0].cells[0]
     p_oneture = cell_oneture.paragraphs[0]
     p_oneture.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    if branding_data['oneture_logo']:
+    oneture_path = "oneture_logo.png"
+    if os.path.exists(oneture_path):
         try:
             run = p_oneture.add_run()
-            run.add_picture(branding_data['oneture_logo'], width=Inches(1.4))
+            run.add_picture(oneture_path, width=Inches(1.1))
         except:
             p_oneture.add_run("ONETURE").font.bold = True
+    else:
+        p_oneture.add_run("ONETURE").font.bold = True
     
     # AWS Advanced Logo (Right Cell)
     cell_aws = bottom_table.rows[0].cells[1]
     p_aws = cell_aws.paragraphs[0]
     p_aws.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    if branding_data['aws_adv_logo']:
+    aws_adv_path = "aws_advanced_tier.png"
+    if os.path.exists(aws_adv_path):
         try:
             run = p_aws.add_run()
-            run.add_picture(branding_data['aws_adv_logo'], width=Inches(1.4))
+            run.add_picture(aws_adv_path, width=Inches(1.1))
         except:
-            p_aws.add_run("aws PARTNER Advanced Tier Services").font.bold = True
+            p_aws.add_run("aws PARTNER Advanced Tier").font.bold = True
+    else:
+        p_aws.add_run("aws PARTNER Advanced Tier").font.bold = True
 
-    # 5. Date (BOTTOM CENTER)
-    doc.add_paragraph("\n")
+    # 5. Date (BOTTOM CENTER) - FIXED POSITION
     date_p = doc.add_paragraph()
     date_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = date_p.add_run(branding_data['doc_date'].strftime("%d %B %Y"))
-    run.font.size = Pt(12)
+    run.font.size = Pt(11)
     run.font.bold = True
     
     doc.add_page_break()
@@ -247,16 +258,13 @@ st.title("🚀 GenAI Scope of Work Architect")
 
 # --- STEP 0: COVER PAGE BRANDING ---
 st.header("📸 Cover Page Branding")
-st.info("Upload the logos to recreate the Cover Page exactly as per the reference document.")
+st.info("The Partner logos (Oneture/AWS) are fixed. Please upload the Customer logo and select the document date.")
 
 brand_col1, brand_col2 = st.columns(2)
 with brand_col1:
-    aws_pn_logo = st.file_uploader("Top Left: AWS Partner Network Logo", type=['png', 'jpg', 'jpeg'])
-    customer_logo = st.file_uploader("Center: Customer Logo", type=['png', 'jpg', 'jpeg'])
+    customer_logo = st.file_uploader("Upload Customer Logo (Jubilant, Nykaa, etc.)", type=['png', 'jpg', 'jpeg'])
 
 with brand_col2:
-    oneture_logo = st.file_uploader("Bottom Left: Oneture Logo", type=['png', 'jpg', 'jpeg'])
-    aws_adv_logo = st.file_uploader("Bottom Right: AWS Advanced Tier Logo", type=['png', 'jpg', 'jpeg'])
     doc_date = st.date_input("Document Date", date.today())
 
 st.divider()
@@ -340,7 +348,8 @@ if st.button("✨ Generate SOW Document", type="primary", use_container_width=Tr
             4 SOLUTION ARCHITECTURE / ARCHITECTURAL DIAGRAM
             5 RESOURCES & COST ESTIMATES
 
-            Tone: Professional consulting. Output: Markdown only.
+            Tone: Professional consulting. Output: Markdown only. 
+            Keep sections detailed but concise enough to try and maintain a 2-3 page total document length.
             """
             
             payload = {
@@ -374,10 +383,7 @@ if st.session_state.generated_sow:
     
     branding_data = {
         'solution_name': final_solution,
-        'aws_pn_logo': aws_pn_logo,
         'customer_logo': customer_logo,
-        'oneture_logo': oneture_logo,
-        'aws_adv_logo': aws_adv_logo,
         'doc_date': doc_date
     }
     
