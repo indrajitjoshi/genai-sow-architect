@@ -36,7 +36,7 @@ st.markdown("""
         background-color: #f1f5f9; 
         padding: 8px 12px; 
         border-radius: 6px; 
-        margin-bottom: 10px;
+        margin-bottom: 10px; 
         font-weight: bold;
         color: #334155;
         border-left: 4px solid #3b82f6;
@@ -47,8 +47,10 @@ st.markdown("""
 # --- CACHED UTILITIES ---
 def create_docx_logic(text_content, branding_info):
     """
-    Generates the Word document.
-    Ensures Section 1 (Table of Contents) is on Page 2 alone.
+    Generates the Word document with strict page isolation.
+    Page 1: Cover
+    Page 2: Table of Contents (Isolated)
+    Page 3: Project Overview (2.1 -> 2.2 -> 2.3 sequence)
     """
     from docx import Document
     from docx.shared import Inches, Pt, RGBColor
@@ -124,7 +126,7 @@ def create_docx_logic(text_content, branding_info):
     
     doc.add_page_break()
     
-    # --- PAGE 2 ONWARDS: CONTENT WITH TOC ISOLATION ---
+    # --- PAGE 2 ONWARDS: CONTENT ---
     style = doc.styles['Normal']
     style.font.name = 'Arial'
     style.font.size = Pt(11)
@@ -136,19 +138,19 @@ def create_docx_logic(text_content, branding_info):
     while i < len(lines):
         line = lines[i].strip()
         
-        # Start Section 1 (Table of Contents) on its own page
+        # Start Section 1 (Table of Contents) on Page 2
         if "1 TABLE OF CONTENTS" in line.upper():
             in_toc_section = True
             doc.add_heading("1 TABLE OF CONTENTS", level=1)
             i += 1
             continue
         
-        # End TOC Isolation: Move Section 2 to Page 3
-        if in_toc_section and (line.startswith("# 2") or "PROJECT OVERVIEW" in line.upper() and line.startswith("#")):
+        # Force Section 2 to Page 3 (Ending Page 2 isolation)
+        if in_toc_section and (line.startswith("# 2") or ("PROJECT OVERVIEW" in line.upper() and line.startswith("#"))):
             doc.add_page_break()
             in_toc_section = False
 
-        # Table detection
+        # Markdown Table Detection
         if line.startswith('|') and i + 1 < len(lines) and lines[i+1].strip().startswith('|'):
             table_lines = []
             while i < len(lines) and lines[i].strip().startswith('|'):
@@ -176,21 +178,26 @@ def create_docx_logic(text_content, branding_info):
         elif line.startswith('# '):
             doc.add_heading(line[2:], level=1)
         elif line.startswith('## '):
-            p = doc.add_heading(line[3:], level=2)
+            # Indentation for subsections in TOC or general content
+            text = line[3:].strip()
+            p = doc.add_heading(text, level=2)
             if in_toc_section:
-                p.paragraph_format.left_indent = Inches(0.5) # Indentation for TOC items
+                p.paragraph_format.left_indent = Inches(0.4)
         elif line.startswith('### '):
-            doc.add_heading(line[4:], level=3)
+            text = line[4:].strip()
+            p = doc.add_heading(text, level=3)
+            if in_toc_section:
+                p.paragraph_format.left_indent = Inches(0.8)
         elif line.startswith('- ') or line.startswith('* '):
             p = doc.add_paragraph(line[2:], style='List Bullet')
             if in_toc_section:
-                p.paragraph_format.left_indent = Inches(0.5)
+                p.paragraph_format.left_indent = Inches(0.4)
         else:
+            # Handle plain text lines (especially sub-items in TOC)
             p = doc.add_paragraph(line)
-            if in_toc_section:
-                # Basic indentation for sub-items in TOC if they don't have markers
-                if any(char.isdigit() for char in line[:4]):
-                    p.paragraph_format.left_indent = Inches(0.5)
+            # If line starts with a numeric index (like 2.1, 2.2) and we are in TOC, indent it
+            if in_toc_section and len(line) > 3 and line[0].isdigit() and (line[1] == '.' or (line[1].isdigit() and line[2] == '.')):
+                 p.paragraph_format.left_indent = Inches(0.4)
         i += 1
             
     bio = io.BytesIO()
@@ -259,14 +266,16 @@ st.title("🚀 GenAI Scope of Work Architect")
 
 # --- STEP 0: COVER PAGE BRANDING ---
 st.header("📸 Cover Page Branding")
+st.info("Upload logos for the cover page row. Row Order: Customer Logo, Oneture Logo, AWS Logo.")
+
 brand_col1, brand_col2 = st.columns(2)
 with brand_col1:
     aws_pn_logo = st.file_uploader("Top Left: AWS Partner Network Logo", type=['png', 'jpg', 'jpeg'], key="aws_pn")
-    customer_logo = st.file_uploader("Logo Slot 1: Customer Logo", type=['png', 'jpg', 'jpeg'], key="cust_logo")
+    customer_logo = st.file_uploader("Logo Row - Slot 1: Customer Logo", type=['png', 'jpg', 'jpeg'], key="cust_logo")
 
 with brand_col2:
-    oneture_logo = st.file_uploader("Logo Slot 2: Oneture Logo", type=['png', 'jpg', 'jpeg'], key="one_logo")
-    aws_adv_logo = st.file_uploader("Logo Slot 3: AWS Advanced Logo", type=['png', 'jpg', 'jpeg'], key="aws_adv")
+    oneture_logo = st.file_uploader("Logo Row - Slot 2: Oneture Logo", type=['png', 'jpg', 'jpeg'], key="one_logo")
+    aws_adv_logo = st.file_uploader("Logo Row - Slot 3: AWS Advanced Logo", type=['png', 'jpg', 'jpeg'], key="aws_adv")
     doc_date = st.date_input("Document Date", date.today())
 
 st.divider()
@@ -322,8 +331,8 @@ if st.button("✨ Generate SOW Document", type="primary", use_container_width=Tr
             prompt_text = f"""
             Generate a COMPLETE formal enterprise Scope of Work (SOW) for {final_solution} in {final_industry}.
             
-            STRUCTURE:
-            1 TABLE OF CONTENTS
+            MANDATORY STRUCTURE:
+            1 TABLE OF CONTENTS (Clean list with indentation)
             2 PROJECT OVERVIEW
               2.1 OBJECTIVE
               2.2 PROJECT SPONSOR(S) / STAKEHOLDER(S) / PROJECT TEAM
@@ -332,6 +341,13 @@ if st.button("✨ Generate SOW Document", type="primary", use_container_width=Tr
             3 SCOPE OF WORK – TECHNICAL PROJECT PLAN
             4 SOLUTION ARCHITECTURE / ARCHITECTURAL DIAGRAM
             5 RESOURCES & COST ESTIMATES
+
+            MANDATORY CONTENT RULES:
+            - Section 2 must start with 2.1 Objective.
+            - Follow immediately with 2.2 Project Sponsor(s) using the provided tables.
+            - Follow immediately with 2.3 Assumptions & Dependencies.
+            - DO NOT add any introductory filler text or "In this section..." sentences between these headers. 
+            - In section 2.2, insert ONLY the tables. DO NOT add extra headers like "### Partner Sponsor" before each table.
 
             INPUT DETAILS:
             - Engagement Type: {engagement_type}
@@ -350,7 +366,7 @@ if st.button("✨ Generate SOW Document", type="primary", use_container_width=Tr
             
             payload = {
                 "contents": [{"parts": [{"text": prompt_text}]}],
-                "systemInstruction": {"parts": [{"text": "You are a senior Solutions Architect. You generate detailed SOWs matching enterprise standards. Ensure Section 1 is a clean Table of Contents."}]}
+                "systemInstruction": {"parts": [{"text": "You are a senior Solutions Architect. You generate detailed SOW documents. Strictly follow numbering and ordering. No conversational filler between subsections."}]}
             }
             
             try:
