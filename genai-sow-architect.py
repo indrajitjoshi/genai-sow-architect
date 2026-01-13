@@ -126,9 +126,6 @@ def create_docx_logic(text_content, branding_info):
     while i < len(lines):
         line = lines[i].strip()
         if not line:
-            # Avoid adding multiple blank paragraphs to keep page counts low
-            if i > 0 and lines[i-1].strip():
-                doc.add_paragraph("")
             i += 1
             continue
 
@@ -138,9 +135,9 @@ def create_docx_logic(text_content, branding_info):
         if "2 PROJECT OVERVIEW" in clean_check:
             doc.add_page_break()
             in_toc_section = False
-            # We add it manually as heading level 1 and skip standard parsing for this line
-            text = line.replace('#', '').strip().replace('**', '').replace('*', '')
-            doc.add_heading(text, level=1)
+            # Clean text for header
+            header_text = line.replace('#', '').strip().replace('**', '').replace('*', '')
+            doc.add_heading(header_text, level=1)
             i += 1
             continue
 
@@ -149,12 +146,12 @@ def create_docx_logic(text_content, branding_info):
             if not toc_already_added:
                 in_toc_section = True
                 toc_already_added = True
-                text = line.replace('#', '').strip().replace('**', '').replace('*', '')
-                doc.add_heading(text, level=1)
+                header_text = line.replace('#', '').strip().replace('**', '').replace('*', '')
+                doc.add_heading(header_text, level=1)
             i += 1
             continue
 
-        # Global markdown artifact cleanup (remove unnecessary asterisks/bolding marks)
+        # Global markdown artifact cleanup
         line_clean = line.replace('**', '').replace('*', '')
 
         # Markdown Table Detection
@@ -178,6 +175,8 @@ def create_docx_logic(text_content, branding_info):
                         for idx, c_text in enumerate(r_data):
                             if idx < len(row_cells):
                                 row_cells[idx].text = c_text
+                # Add spacing after table to keep output distinct
+                doc.add_paragraph("")
             continue
 
         # Standard Markdown Element Parsing
@@ -205,9 +204,9 @@ def create_docx_logic(text_content, branding_info):
             if in_toc_section and len(line_clean) > 3 and line_clean[0].isdigit():
                  p.paragraph_format.left_indent = Inches(0.4)
             
-            # Segregation logic for Assumptions and Dependencies
-            if "DEPENDENCIES:" in line_clean.upper() or "ASSUMPTIONS:" in line_clean.upper():
-                # Bold only the label part
+            # Segregation logic for sub-categories in Section 2.2 and 2.3
+            uppercase_line = line_clean.upper()
+            if any(key in uppercase_line for key in ["DEPENDENCIES:", "ASSUMPTIONS:", "SPONSOR:", "CONTACTS:"]):
                 p.runs[0].bold = True
         i += 1
             
@@ -341,7 +340,7 @@ if st.button("✨ Generate SOW Document", type="primary", use_container_width=Tr
             Generate a COMPLETE formal enterprise Scope of Work (SOW) for {final_solution} in {final_industry}.
             
             MANDATORY STRUCTURE:
-            1 TABLE OF CONTENTS (Indented sub-items)
+            1 TABLE OF CONTENTS (Clean list with indented sub-items)
             2 PROJECT OVERVIEW
               2.1 OBJECTIVE
               2.2 PROJECT SPONSOR(S) / STAKEHOLDER(S) / PROJECT TEAM
@@ -354,10 +353,10 @@ if st.button("✨ Generate SOW Document", type="primary", use_container_width=Tr
             CONTENT RULES:
             - NO filler text or introductory sentences between headers 2, 2.1, 2.2, and 2.3.
             - Section 2 must start immediately with 2.1 Objective.
-            - Section 2.2 follows immediately with the provided tables.
-            - Section 2.3 must clearly segregate into "Dependencies:" and "Assumptions:" with bulleted lists.
+            - Section 2.2 must keep all stakeholder sections distinct. Precede each provided table with a plain text heading: Partner Executive Sponsor, Customer Executive Sponsor, AWS Executive Sponsor, and Project Escalation Contacts.
+            - Section 2.3 must clearly segregate into "Dependencies:" and "Assumptions:" labels with bulleted lists.
             - Remove ALL unnecessary asterisks (*) or markdown bolding marks (**) inside text or headings. 
-            - Use plain text for headers and labels. No markdown symbols in the output content.
+            - Use plain text for headers and labels. No markdown symbols in the output document content.
 
             INPUT DETAILS:
             - Engagement Type: {engagement_type}
@@ -376,7 +375,7 @@ if st.button("✨ Generate SOW Document", type="primary", use_container_width=Tr
             
             payload = {
                 "contents": [{"parts": [{"text": prompt_text}]}],
-                "systemInstruction": {"parts": [{"text": "You are a senior Solutions Architect. You generate detailed SOW documents. Strictly follow numbering. NO filler text. NO markdown bolding marks or asterisks in the output text. Plain text output only."}]}
+                "systemInstruction": {"parts": [{"text": "You are a senior Solutions Architect. You generate detailed SOW documents. Strictly follow numbering. NO filler text. NO markdown bolding marks or asterisks in the output text. Keep all tables and their category headings distinct and segregated."}]}
             }
             
             try:
