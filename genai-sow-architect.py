@@ -83,12 +83,14 @@ def create_docx_logic(text_content, branding_info):
     
     doc.add_paragraph("\n" * 4) # Spacing to logos
     
-    # 3. Logo Row: Customer | Oneture | AWS Advanced Tier (SINGLE LINE, SIMILAR SIZE)
+    # 3. Logo Row: Customer | Oneture | AWS Advanced Tier (SINGLE LINE, SPECIFIC SIZES)
     logo_table = doc.add_table(rows=1, cols=3)
     logo_table.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
-    # Define widths (1.8 inches as requested)
-    img_width = Inches(1.8)
+    # Define widths as requested
+    cust_width = Inches(1.5)
+    oneture_width = Inches(2.0)
+    aws_width = Inches(1.4)
     
     # Cell 1: Customer Logo
     cell_cust = logo_table.rows[0].cells[0]
@@ -97,7 +99,7 @@ def create_docx_logic(text_content, branding_info):
     if branding_info.get('customer_logo_bytes'):
         try:
             run = p_cust.add_run()
-            run.add_picture(io.BytesIO(branding_info['customer_logo_bytes']), width=img_width)
+            run.add_picture(io.BytesIO(branding_info['customer_logo_bytes']), width=cust_width)
         except:
             p_cust.add_run("[Customer Logo]")
             
@@ -108,7 +110,7 @@ def create_docx_logic(text_content, branding_info):
     if branding_info.get('oneture_logo_bytes'):
         try:
             run = p_one.add_run()
-            run.add_picture(io.BytesIO(branding_info['oneture_logo_bytes']), width=img_width)
+            run.add_picture(io.BytesIO(branding_info['oneture_logo_bytes']), width=oneture_width)
         except:
             p_one.add_run("ONETURE")
 
@@ -119,7 +121,7 @@ def create_docx_logic(text_content, branding_info):
     if branding_info.get('aws_adv_logo_bytes'):
         try:
             run = p_aws.add_run()
-            run.add_picture(io.BytesIO(branding_info['aws_adv_logo_bytes']), width=img_width)
+            run.add_picture(io.BytesIO(branding_info['aws_adv_logo_bytes']), width=aws_width)
         except:
             p_aws.add_run("AWS Advanced")
 
