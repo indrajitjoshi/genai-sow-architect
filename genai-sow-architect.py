@@ -66,7 +66,7 @@ def create_docx_logic(text_content, branding_info):
         except:
             doc.add_paragraph("aws partner network").alignment = WD_ALIGN_PARAGRAPH.LEFT
 
-    doc.add_paragraph("\n" * 3)
+    doc.add_paragraph("\n" * 3) # Spacing
     
     # 2. Solution Name & Subtitle (CENTER)
     title_p = doc.add_paragraph()
@@ -81,46 +81,47 @@ def create_docx_logic(text_content, branding_info):
     run.font.size = Pt(14)
     run.font.color.rgb = RGBColor(0x64, 0x74, 0x8B)
     
-    doc.add_paragraph("\n")
+    doc.add_paragraph("\n" * 4) # Spacing to logos
     
-    # 3. Customer Logo (CENTER)
+    # 3. Logo Row: Customer | Oneture | AWS Advanced Tier (SINGLE LINE)
+    logo_table = doc.add_table(rows=1, cols=3)
+    logo_table.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    
+    # Cell 1: Customer Logo
     if branding_info.get('customer_logo_bytes'):
+        cell_cust = logo_table.rows[0].cells[0]
+        p_cust = cell_cust.paragraphs[0]
+        p_cust.alignment = WD_ALIGN_PARAGRAPH.CENTER
         try:
-            p_logo = doc.add_paragraph()
-            p_logo.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            run = p_logo.add_run()
-            run.add_picture(io.BytesIO(branding_info['customer_logo_bytes']), width=Inches(2.0))
+            run = p_cust.add_run()
+            run.add_picture(io.BytesIO(branding_info['customer_logo_bytes']), width=Inches(1.1))
         except:
-            doc.add_paragraph("[Customer Logo Image]").alignment = WD_ALIGN_PARAGRAPH.CENTER
-    
-    doc.add_paragraph("\n" * 4)
-    
-    # 4. Oneture (Bottom Left) and AWS Advanced Tier (Bottom Right)
-    bottom_table = doc.add_table(rows=1, cols=2)
-    bottom_table.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    
-    # Oneture Logo (Left Cell)
-    cell_oneture = bottom_table.rows[0].cells[0]
-    p_oneture = cell_oneture.paragraphs[0]
-    p_oneture.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            p_cust.add_run("[Customer Logo]")
+            
+    # Cell 2: Oneture Logo
     if branding_info.get('oneture_logo_bytes'):
+        cell_one = logo_table.rows[0].cells[1]
+        p_one = cell_one.paragraphs[0]
+        p_one.alignment = WD_ALIGN_PARAGRAPH.CENTER
         try:
-            run = p_oneture.add_run()
-            run.add_picture(io.BytesIO(branding_info['oneture_logo_bytes']), width=Inches(1.2))
+            run = p_one.add_run()
+            run.add_picture(io.BytesIO(branding_info['oneture_logo_bytes']), width=Inches(1.1))
         except:
-            p_oneture.add_run("ONETURE").font.bold = True
-    
-    # AWS Advanced Logo (Right Cell)
-    cell_aws = bottom_table.rows[0].cells[1]
-    p_aws = cell_aws.paragraphs[0]
-    p_aws.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            p_one.add_run("ONETURE")
+
+    # Cell 3: AWS Advanced Logo
     if branding_info.get('aws_adv_logo_bytes'):
+        cell_aws = logo_table.rows[0].cells[2]
+        p_aws = cell_aws.paragraphs[0]
+        p_aws.alignment = WD_ALIGN_PARAGRAPH.CENTER
         try:
             run = p_aws.add_run()
-            run.add_picture(io.BytesIO(branding_info['aws_adv_logo_bytes']), width=Inches(1.2))
+            run.add_picture(io.BytesIO(branding_info['aws_adv_logo_bytes']), width=Inches(1.1))
         except:
-            p_aws.add_run("aws PARTNER Advanced Tier").font.bold = True
+            p_aws.add_run("AWS Advanced")
 
+    doc.add_paragraph("\n" * 4) # Spacing to date
+    
     # 5. Date (BOTTOM CENTER)
     date_p = doc.add_paragraph()
     date_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -241,16 +242,16 @@ st.title("🚀 GenAI Scope of Work Architect")
 
 # --- STEP 0: COVER PAGE BRANDING ---
 st.header("📸 Cover Page Branding")
-st.info("Upload the logos to recreate the cover page title layout.")
+st.info("Upload the logos to recreate the cover page title layout. All logos will be placed side-by-side.")
 
 brand_col1, brand_col2 = st.columns(2)
 with brand_col1:
     aws_pn_logo = st.file_uploader("Top Left: AWS Partner Network Logo", type=['png', 'jpg', 'jpeg'], key="aws_pn")
-    customer_logo = st.file_uploader("Center: Customer Logo", type=['png', 'jpg', 'jpeg'], key="cust_logo")
+    customer_logo = st.file_uploader("Center Position: Customer Logo", type=['png', 'jpg', 'jpeg'], key="cust_logo")
 
 with brand_col2:
-    oneture_logo = st.file_uploader("Bottom Left: Oneture Logo", type=['png', 'jpg', 'jpeg'], key="one_logo")
-    aws_adv_logo = st.file_uploader("Bottom Right: AWS Advanced Tier Logo", type=['png', 'jpg', 'jpeg'], key="aws_adv")
+    oneture_logo = st.file_uploader("Bottom Left Position: Oneture Logo", type=['png', 'jpg', 'jpeg'], key="one_logo")
+    aws_adv_logo = st.file_uploader("Bottom Right Position: AWS Advanced Tier Logo", type=['png', 'jpg', 'jpeg'], key="aws_adv")
     doc_date = st.date_input("Document Date", date.today())
 
 st.divider()
@@ -360,7 +361,6 @@ if st.session_state.generated_sow:
     tab_edit, tab_preview = st.tabs(["✍️ Document Editor", "📄 Visual Preview"])
     
     with tab_edit:
-        # sow_editor key ensures state is handled by Streamlit effectively
         st.session_state.generated_sow = st.text_area(
             label="Modify generated content:", 
             value=st.session_state.generated_sow, 
@@ -375,8 +375,6 @@ if st.session_state.generated_sow:
     
     st.write("")
     
-    # We trigger the heavy docx creation logic only via another button click 
-    # to keep the text editor ultra-responsive.
     if st.button("💾 Prepare Microsoft Word Document"):
         branding_info = {
             'solution_name': final_solution,
