@@ -74,83 +74,77 @@ def create_docx(text_content, branding_data):
     
     # --- PAGE 1: COVER PAGE (STRICT PDF LAYOUT) ---
     
-    # 1. AWS Partner Network Logo (TOP LEFT) - FIXED
+    # 1. AWS Partner Network Logo (TOP LEFT) - FIXED ASSET
     aws_pn_path = "aws_partner_network.png"
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    p_top = doc.add_paragraph()
+    p_top.alignment = WD_ALIGN_PARAGRAPH.LEFT
     if os.path.exists(aws_pn_path):
-        try:
-            run = p.add_run()
-            run.add_picture(aws_pn_path, width=Inches(1.5))
-        except:
-            p.add_run("aws partner network")
+        run = p_top.add_run()
+        run.add_picture(aws_pn_path, width=Inches(1.5))
     else:
-        p.add_run("aws partner network")
+        # If file missing, use styled text as fallback
+        run = p_top.add_run("aws partner\nnetwork")
+        run.font.bold = True
+        run.font.size = Pt(10)
 
-    doc.add_paragraph("\n" * 5) # Gap before title
+    doc.add_paragraph("\n" * 4) # Gap before title
     
-    # 2. Title & Subtitle (CENTER)
+    # 2. Solution Name & Subtitle (CENTER)
     title_p = doc.add_paragraph()
     title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = title_p.add_run(branding_data['solution_name'])
-    run.font.size = Pt(26)
+    run.font.size = Pt(28)
     run.font.bold = True
     
     subtitle_p = doc.add_paragraph()
     subtitle_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = subtitle_p.add_run("Scope of Work Document")
     run.font.size = Pt(16)
-    run.font.color.rgb = RGBColor(0x64, 0x74, 0x8B)
+    run.font.color.rgb = RGBColor(0x64, 0x74, 0x8B) # Slate grey
     
-    doc.add_paragraph("\n" * 2) # Gap before customer logo
+    doc.add_paragraph("\n" * 2)
     
     # 3. Customer Logo (CENTER) - MODIFIABLE
     if branding_data['customer_logo']:
         try:
-            p = doc.add_paragraph()
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            run = p.add_run()
+            p_logo = doc.add_paragraph()
+            p_logo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            run = p_logo.add_run()
             run.add_picture(branding_data['customer_logo'], width=Inches(2.5))
         except:
-            p = doc.add_paragraph("[Customer Logo]")
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p_err = doc.add_paragraph("[Customer Logo]")
+            p_err.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
-    doc.add_paragraph("\n" * 6) # Large gap to bottom branding
+    doc.add_paragraph("\n" * 4) # Gap to bottom
     
-    # 4. Oneture & AWS Advanced Tier (BOTTOM PARTNERS) - FIXED
-    # Note: Placed as side-by-side images in a table to ensure fixed positions
-    brand_table = doc.add_table(rows=1, cols=2)
-    brand_table.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    # 4. Oneture (Bottom Left) and AWS Advanced Tier (Bottom Right)
+    # Using a table to fix positions at the bottom of the page
+    bottom_table = doc.add_table(rows=1, cols=2)
+    bottom_table.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
-    # Oneture Logo (Bottom Left cell, right aligned within cell to simulate center-left)
-    cell_left = brand_table.rows[0].cells[0]
-    p_left = cell_left.paragraphs[0]
-    p_left.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    # Oneture Logo (Left Cell)
+    cell_oneture = bottom_table.rows[0].cells[0]
+    p_oneture = cell_oneture.paragraphs[0]
+    p_oneture.alignment = WD_ALIGN_PARAGRAPH.LEFT
     oneture_path = "oneture_logo.png"
     if os.path.exists(oneture_path):
-        try:
-            run = p_left.add_run()
-            run.add_picture(oneture_path, width=Inches(1.4))
-        except:
-            p_left.add_run("ONETURE")
+        run = p_oneture.add_run()
+        run.add_picture(oneture_path, width=Inches(1.4))
     else:
-        p_left.add_run("ONETURE")
+        p_oneture.add_run("ONETURE").font.bold = True
     
-    # AWS Advanced Logo (Bottom Right cell, left aligned within cell to simulate center-right)
-    cell_right = brand_table.rows[0].cells[1]
-    p_right = cell_right.paragraphs[0]
-    p_right.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    # AWS Advanced Logo (Right Cell)
+    cell_aws = bottom_table.rows[0].cells[1]
+    p_aws = cell_aws.paragraphs[0]
+    p_aws.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     aws_adv_path = "aws_advanced_tier.png"
     if os.path.exists(aws_adv_path):
-        try:
-            run = p_right.add_run()
-            run.add_picture(aws_adv_path, width=Inches(1.4))
-        except:
-            p_right.add_run("AWS Advanced Tier")
+        run = p_aws.add_run()
+        run.add_picture(aws_adv_path, width=Inches(1.4))
     else:
-        p_right.add_run("AWS Advanced Tier")
+        p_aws.add_run("aws PARTNER Advanced Tier Services").font.bold = True
 
-    # 5. Date (BOTTOM CENTER) - MODIFIABLE
+    # 5. Date (BOTTOM CENTER)
     doc.add_paragraph("\n")
     date_p = doc.add_paragraph()
     date_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -160,10 +154,10 @@ def create_docx(text_content, branding_data):
     
     doc.add_page_break()
     
-    # --- PAGE 2 ONWARDS: CONTENT ---
+    # --- PAGE 2: CONTENT (CONCISE) ---
     style = doc.styles['Normal']
     style.font.name = 'Arial'
-    style.font.size = Pt(11)
+    style.font.size = Pt(10) # Smaller font to ensure 2-page total
 
     lines = text_content.split('\n')
     i = 0
@@ -246,7 +240,7 @@ with st.sidebar:
     industry_type = st.selectbox("1.3 Industry / Domain", industry_options)
     final_industry = st.text_input("Specify Industry", placeholder="Enter industry...") if industry_type == "Other (specify)" else industry_type
 
-    duration = st.text_input("Timeline / Duration", "4-6 Weeks")
+    duration = st.text_input("Timeline / Duration", "4 Weeks")
     
     if st.button("🗑️ Reset All Fields", on_click=clear_sow, use_container_width=True):
         st.rerun()
@@ -256,7 +250,7 @@ st.title("🚀 GenAI Scope of Work Architect")
 
 # --- STEP 0: COVER PAGE BRANDING ---
 st.header("📸 Cover Page Branding")
-st.info("The Partner logos (Oneture/AWS) are fixed internal assets. Please upload the Customer logo and select the document date below.")
+st.info("Upload the Customer logo and select the document date. Partner logos are fixed internal assets.")
 
 brand_col1, brand_col2 = st.columns(2)
 with brand_col1:
@@ -316,8 +310,10 @@ if st.button("✨ Generate SOW Document", type="primary", use_container_width=Tr
             def get_md(df):
                 return df.to_markdown(index=False)
 
+            # Prompt updated to be VERY concise to keep document under 2 pages total
             prompt_text = f"""
-            Generate a formal enterprise Scope of Work (SOW) for {final_solution} in {final_industry}.
+            Generate a VERY CONCISE formal enterprise Scope of Work (SOW) for {final_solution} in {final_industry}.
+            The entire content MUST be brief enough to fit on one single page (following the cover page).
             
             INPUT DETAILS:
             - Engagement Type: {engagement_type}
@@ -326,24 +322,20 @@ if st.button("✨ Generate SOW Document", type="primary", use_container_width=Tr
             - Timeline: {duration}
             
             STAKEHOLDER TABLES:
-            ### Partner Executive Sponsor:
+            ### Partner Sponsor:
             {get_md(st.session_state.stakeholders["Partner"])}
-            ### Customer Executive Sponsor:
+            ### Customer Sponsor:
             {get_md(st.session_state.stakeholders["Customer"])}
-            ### AWS Executive Sponsor:
+            ### AWS Sponsor:
             {get_md(st.session_state.stakeholders["AWS"])}
-            ### Project Escalation Contacts:
+            ### Escalation Contacts:
             {get_md(st.session_state.stakeholders["Escalation"])}
             
-            STRICT STRUCTURE:
+            STRICT STRUCTURE (BE BRIEF):
             1 TABLE OF CONTENTS
-            2 PROJECT OVERVIEW
-              2.1 OBJECTIVE
-              2.2 PROJECT SPONSOR(S) / STAKEHOLDER(S) / PROJECT TEAM
-              2.3 ASSUMPTIONS & DEPENDENCIES
-              2.4 PROJECT SUCCESS CRITERIA
-            3 SCOPE OF WORK – TECHNICAL PROJECT PLAN
-            4 SOLUTION ARCHITECTURE
+            2 PROJECT OVERVIEW (Combine objective, team, and criteria)
+            3 SCOPE OF WORK (Brief technical plan)
+            4 SOLUTION ARCHITECTURE (AWS Bedrock stack)
             5 RESOURCES & COST ESTIMATES
 
             Tone: Professional consulting. Output: Markdown only.
@@ -351,7 +343,7 @@ if st.button("✨ Generate SOW Document", type="primary", use_container_width=Tr
             
             payload = {
                 "contents": [{"parts": [{"text": prompt_text}]}],
-                "systemInstruction": {"parts": [{"text": "You are a senior Solutions Architect at Oneture."}]}
+                "systemInstruction": {"parts": [{"text": "You are a senior Solutions Architect at Oneture. Your goal is to provide high-quality but extremely concise SOW documentation that fits on exactly one page of text."}]}
             }
             
             try:
