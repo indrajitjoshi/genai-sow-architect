@@ -7,6 +7,7 @@ from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from io import BytesIO
 from datetime import date
+import os
 
 # --- CONFIGURATION ---
 st.set_page_config(
@@ -73,19 +74,22 @@ def create_docx(text_content, branding_data):
     
     # --- PAGE 1: COVER PAGE (STRICT PDF LAYOUT) ---
     
-    # 1. AWS Partner Network Logo (TOP LEFT)
-    if branding_data['aws_pn_logo']:
+    # 1. AWS Partner Network Logo (TOP LEFT) - FIXED
+    # Note: Assumes file exists in assets folder or current dir
+    aws_pn_path = "aws_partner_network.png"
+    if os.path.exists(aws_pn_path):
         try:
             p = doc.add_paragraph()
             run = p.add_run()
-            run.add_picture(branding_data['aws_pn_logo'], width=Inches(1.2))
+            run.add_picture(aws_pn_path, width=Inches(1.2))
             p.alignment = WD_ALIGN_PARAGRAPH.LEFT
         except:
-            doc.add_paragraph("AWS Partner Network").alignment = WD_ALIGN_PARAGRAPH.LEFT
+            doc.add_paragraph("aws partner\nnetwork").alignment = WD_ALIGN_PARAGRAPH.LEFT
     else:
-        # Placeholder space if no logo
-        doc.add_paragraph("\n")
-    
+        # Fallback text if file is missing
+        p = doc.add_paragraph("aws partner\nnetwork")
+        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+
     doc.add_paragraph("\n" * 5) # Gap before title
     
     # 2. Title & Subtitle (CENTER)
@@ -103,7 +107,7 @@ def create_docx(text_content, branding_data):
     
     doc.add_paragraph("\n" * 2) # Gap before customer logo
     
-    # 3. Customer Logo (CENTER)
+    # 3. Customer Logo (CENTER) - MODIFIABLE
     if branding_data['customer_logo']:
         try:
             p = doc.add_paragraph()
@@ -111,13 +115,12 @@ def create_docx(text_content, branding_data):
             run = p.add_run()
             run.add_picture(branding_data['customer_logo'], width=Inches(2.5))
         except:
-            p = doc.add_paragraph("[Customer Logo Placeholder]")
+            p = doc.add_paragraph("[Customer Logo Error]")
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
     doc.add_paragraph("\n" * 6) # Large gap to bottom branding
     
-    # 4. Oneture & AWS Advanced Tier (BOTTOM CENTER)
-    # Using a table to keep them side-by-side at the bottom
+    # 4. Oneture & AWS Advanced Tier (BOTTOM CENTER) - FIXED
     brand_table = doc.add_table(rows=1, cols=2)
     brand_table.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
@@ -125,25 +128,31 @@ def create_docx(text_content, branding_data):
     cell_left = brand_table.rows[0].cells[0]
     p_left = cell_left.paragraphs[0]
     p_left.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    if branding_data['oneture_logo']:
+    oneture_path = "oneture_logo.png"
+    if os.path.exists(oneture_path):
         try:
             run = p_left.add_run()
-            run.add_picture(branding_data['oneture_logo'], width=Inches(1.3))
+            run.add_picture(oneture_path, width=Inches(1.3))
         except:
             p_left.add_run("ONETURE")
+    else:
+        p_left.add_run("ONETURE")
     
     # AWS Advanced Logo (Right cell, left aligned)
     cell_right = brand_table.rows[0].cells[1]
     p_right = cell_right.paragraphs[0]
     p_right.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    if branding_data['aws_adv_logo']:
+    aws_adv_path = "aws_advanced_tier.png"
+    if os.path.exists(aws_adv_path):
         try:
             run = p_right.add_run()
-            run.add_picture(branding_data['aws_adv_logo'], width=Inches(1.3))
+            run.add_picture(aws_adv_path, width=Inches(1.3))
         except:
             p_right.add_run("AWS Advanced Tier")
+    else:
+        p_right.add_run("AWS Advanced Tier")
 
-    # 5. Date (BOTTOM CENTER)
+    # 5. Date (BOTTOM CENTER) - MODIFIABLE
     doc.add_paragraph("\n")
     date_p = doc.add_paragraph()
     date_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -249,18 +258,23 @@ st.title("🚀 GenAI Scope of Work Architect")
 
 # --- STEP 0: COVER PAGE BRANDING ---
 st.header("📸 Cover Page Branding")
-st.info("Upload the logos to recreate the Cover Page exactly as per the reference document.")
+st.info("The Partner logos (Oneture/AWS) are fixed. Upload the Customer logo and select the document date.")
 
 brand_col1, brand_col2 = st.columns(2)
 with brand_col1:
-    aws_pn_logo = st.file_uploader("Top Left: AWS Partner Network Logo", type=['png', 'jpg', 'jpeg'])
     customer_logo = st.file_uploader("Center: Customer Logo (e.g. Jubilant)", type=['png', 'jpg', 'jpeg'])
 
 with brand_col2:
-    oneture_logo = st.file_uploader("Bottom Left: Oneture Logo", type=['png', 'jpg', 'jpeg'])
-    aws_adv_logo = st.file_uploader("Bottom Right: AWS Advanced Tier Logo", type=['png', 'jpg', 'jpeg'])
+    doc_date = st.date_input("Document Date", date.today())
 
-doc_date = st.date_input("Document Date", date.today())
+# Verification for local logo files (Internal note for the user/developer)
+missing_logos = []
+if not os.path.exists("aws_partner_network.png"): missing_logos.append("aws_partner_network.png")
+if not os.path.exists("oneture_logo.png"): missing_logos.append("oneture_logo.png")
+if not os.path.exists("aws_advanced_tier.png"): missing_logos.append("aws_advanced_tier.png")
+
+if missing_logos:
+    st.warning(f"⚠️ Fixed internal logos missing in directory: {', '.join(missing_logos)}. Text placeholders will be used instead.")
 
 st.divider()
 
@@ -377,10 +391,7 @@ if st.session_state.generated_sow:
     
     branding_data = {
         'solution_name': final_solution,
-        'aws_pn_logo': aws_pn_logo,
         'customer_logo': customer_logo,
-        'oneture_logo': oneture_logo,
-        'aws_adv_logo': aws_adv_logo,
         'doc_date': doc_date
     }
     
