@@ -1,11 +1,8 @@
 import streamlit as st
-import pandas as pd
-from io import BytesIO
 from datetime import date
-import os
+import io
 
 # --- CONFIGURATION ---
-# Page config must be the first Streamlit command
 st.set_page_config(
     page_title="GenAI SOW Architect", 
     layout="wide", 
@@ -48,11 +45,9 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- CACHED UTILITIES ---
-@st.cache_data
-def generate_docx_cached(text_content, branding_info):
+def create_docx_logic(text_content, branding_info):
     """
-    Generates the Word document. Heavy imports are inside the function 
-    to speed up initial app launch.
+    Generates the Word document. Heavy imports are inside to speed up launch.
     """
     from docx import Document
     from docx.shared import Inches, Pt, RGBColor
@@ -67,10 +62,9 @@ def generate_docx_cached(text_content, branding_info):
             p_top = doc.add_paragraph()
             p_top.alignment = WD_ALIGN_PARAGRAPH.LEFT
             run = p_top.add_run()
-            run.add_picture(BytesIO(branding_info['aws_pn_logo_bytes']), width=Inches(1.0))
+            run.add_picture(io.BytesIO(branding_info['aws_pn_logo_bytes']), width=Inches(1.0))
         except:
-            p = doc.add_paragraph("aws partner network")
-            p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            doc.add_paragraph("aws partner network").alignment = WD_ALIGN_PARAGRAPH.LEFT
 
     doc.add_paragraph("\n" * 3)
     
@@ -95,10 +89,9 @@ def generate_docx_cached(text_content, branding_info):
             p_logo = doc.add_paragraph()
             p_logo.alignment = WD_ALIGN_PARAGRAPH.CENTER
             run = p_logo.add_run()
-            run.add_picture(BytesIO(branding_info['customer_logo_bytes']), width=Inches(2.0))
+            run.add_picture(io.BytesIO(branding_info['customer_logo_bytes']), width=Inches(2.0))
         except:
-            p_err = doc.add_paragraph("[Customer Logo Image]")
-            p_err.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            doc.add_paragraph("[Customer Logo Image]").alignment = WD_ALIGN_PARAGRAPH.CENTER
     
     doc.add_paragraph("\n" * 4)
     
@@ -113,7 +106,7 @@ def generate_docx_cached(text_content, branding_info):
     if branding_info.get('oneture_logo_bytes'):
         try:
             run = p_oneture.add_run()
-            run.add_picture(BytesIO(branding_info['oneture_logo_bytes']), width=Inches(1.2))
+            run.add_picture(io.BytesIO(branding_info['oneture_logo_bytes']), width=Inches(1.2))
         except:
             p_oneture.add_run("ONETURE").font.bold = True
     
@@ -124,7 +117,7 @@ def generate_docx_cached(text_content, branding_info):
     if branding_info.get('aws_adv_logo_bytes'):
         try:
             run = p_aws.add_run()
-            run.add_picture(BytesIO(branding_info['aws_adv_logo_bytes']), width=Inches(1.2))
+            run.add_picture(io.BytesIO(branding_info['aws_adv_logo_bytes']), width=Inches(1.2))
         except:
             p_aws.add_run("aws PARTNER Advanced Tier").font.bold = True
 
@@ -182,7 +175,7 @@ def generate_docx_cached(text_content, branding_info):
             doc.add_paragraph(line)
         i += 1
             
-    bio = BytesIO()
+    bio = io.BytesIO()
     doc.save(bio)
     return bio.getvalue()
 
@@ -191,6 +184,7 @@ if 'generated_sow' not in st.session_state:
     st.session_state.generated_sow = ""
 
 if 'stakeholders' not in st.session_state:
+    import pandas as pd
     st.session_state.stakeholders = {
         "Partner": pd.DataFrame([{"Name": "Gaurav Kankaria", "Title": "Head of Analytics & ML", "Email": "gaurav.kankaria@oneture.com"}]),
         "Customer": pd.DataFrame([{"Name": "Cheten Dev", "Title": "Head of Product Design", "Email": "cheten.dev@nykaa.com"}]),
@@ -247,7 +241,7 @@ st.title("🚀 GenAI Scope of Work Architect")
 
 # --- STEP 0: COVER PAGE BRANDING ---
 st.header("📸 Cover Page Branding")
-st.info("Upload the four logos required for the cover page title layout.")
+st.info("Upload the logos to recreate the cover page title layout.")
 
 brand_col1, brand_col2 = st.columns(2)
 with brand_col1:
@@ -304,7 +298,6 @@ if st.button("✨ Generate SOW Document", type="primary", use_container_width=Tr
     elif not objective:
         st.error("⚠️ Business Objective is required.")
     else:
-        # Move requests import inside to save startup time
         import requests
         with st.spinner(f"Architecting SOW for {final_solution}..."):
             url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key={api_key}"
@@ -367,8 +360,7 @@ if st.session_state.generated_sow:
     tab_edit, tab_preview = st.tabs(["✍️ Document Editor", "📄 Visual Preview"])
     
     with tab_edit:
-        # Use a localized state to avoid constant script re-runs while typing
-        # Key 'sow_editor' ensures Streamlit handles state efficiently
+        # sow_editor key ensures state is handled by Streamlit effectively
         st.session_state.generated_sow = st.text_area(
             label="Modify generated content:", 
             value=st.session_state.generated_sow, 
@@ -383,25 +375,24 @@ if st.session_state.generated_sow:
     
     st.write("")
     
-    # Efficient Preparation for Download
-    # We only bundle the branding data if the generated SOW exists
-    branding_info = {
-        'solution_name': final_solution,
-        'aws_pn_logo_bytes': aws_pn_logo.getvalue() if aws_pn_logo else None,
-        'customer_logo_bytes': customer_logo.getvalue() if customer_logo else None,
-        'oneture_logo_bytes': oneture_logo.getvalue() if oneture_logo else None,
-        'aws_adv_logo_bytes': aws_adv_logo.getvalue() if aws_adv_logo else None,
-        'doc_date_str': doc_date.strftime("%d %B %Y")
-    }
-    
-    # Generate bytes via cached function. 
-    # Because 'st.cache_data' is used, this won't crawl the CPU unless text or images actually change.
-    docx_data = generate_docx_cached(st.session_state.generated_sow, branding_info)
-    
-    st.download_button(
-        label="📥 Download Microsoft Word (.docx)", 
-        data=docx_data, 
-        file_name=f"SOW_{final_solution.replace(' ', '_')}.docx", 
-        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", 
-        use_container_width=True
-    )
+    # We trigger the heavy docx creation logic only via another button click 
+    # to keep the text editor ultra-responsive.
+    if st.button("💾 Prepare Microsoft Word Document"):
+        branding_info = {
+            'solution_name': final_solution,
+            'aws_pn_logo_bytes': aws_pn_logo.getvalue() if aws_pn_logo else None,
+            'customer_logo_bytes': customer_logo.getvalue() if customer_logo else None,
+            'oneture_logo_bytes': oneture_logo.getvalue() if oneture_logo else None,
+            'aws_adv_logo_bytes': aws_adv_logo.getvalue() if aws_adv_logo else None,
+            'doc_date_str': doc_date.strftime("%d %B %Y")
+        }
+        
+        docx_data = create_docx_logic(st.session_state.generated_sow, branding_info)
+        
+        st.download_button(
+            label="📥 Download Now (.docx)", 
+            data=docx_data, 
+            file_name=f"SOW_{final_solution.replace(' ', '_')}.docx", 
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", 
+            use_container_width=True
+        )
