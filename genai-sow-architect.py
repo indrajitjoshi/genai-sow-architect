@@ -1,6 +1,7 @@
 import streamlit as st
 from datetime import date
 import io
+import re
 
 # --- CONFIGURATION ---
 st.set_page_config(
@@ -47,10 +48,7 @@ st.markdown("""
 # --- CACHED UTILITIES ---
 def create_docx_logic(text_content, branding_info):
     """
-    Generates the Word document with strict page isolation.
-    Page 1: Cover
-    Page 2: Table of Contents (Isolated)
-    Page 3: Project Overview (2.1 -> 2.2 -> 2.3 sequence)
+    Generates the Word document with strict page isolation and markdown cleanup.
     """
     from docx import Document
     from docx.shared import Inches, Pt, RGBColor
@@ -60,13 +58,13 @@ def create_docx_logic(text_content, branding_info):
     
     # --- PAGE 1: COVER PAGE ---
     if branding_info.get('aws_pn_logo_bytes'):
+        p_top = doc.add_paragraph()
+        p_top.alignment = WD_ALIGN_PARAGRAPH.LEFT
         try:
-            p_top = doc.add_paragraph()
-            p_top.alignment = WD_ALIGN_PARAGRAPH.LEFT
             run = p_top.add_run()
             run.add_picture(io.BytesIO(branding_info['aws_pn_logo_bytes']), width=Inches(1.0))
         except:
-            doc.add_paragraph("aws partner network").alignment = WD_ALIGN_PARAGRAPH.LEFT
+            p_top.add_run("aws partner network").bold = True
 
     doc.add_paragraph("\n" * 3)
     
@@ -87,34 +85,21 @@ def create_docx_logic(text_content, branding_info):
     logo_table = doc.add_table(rows=1, cols=3)
     logo_table.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
-    # Logo sizes as requested
-    cust_width = Inches(1.4)
-    oneture_width = Inches(2.2)
-    aws_width = Inches(1.3)
-    
-    cell_cust = logo_table.rows[0].cells[0]
-    cell_cust.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-    if branding_info.get('customer_logo_bytes'):
-        try:
-            cell_cust.paragraphs[0].add_run().add_picture(io.BytesIO(branding_info['customer_logo_bytes']), width=cust_width)
-        except:
-            cell_cust.paragraphs[0].add_run("[Customer Logo]")
-            
-    cell_one = logo_table.rows[0].cells[1]
-    cell_one.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-    if branding_info.get('oneture_logo_bytes'):
-        try:
-            cell_one.paragraphs[0].add_run().add_picture(io.BytesIO(branding_info['oneture_logo_bytes']), width=oneture_width)
-        except:
-            cell_one.paragraphs[0].add_run("ONETURE")
+    def insert_logo_to_cell(cell, bytes_data, width_val, fallback_text):
+        cell.paragraphs[0].text = ""
+        p = cell.paragraphs[0]
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        if bytes_data:
+            try:
+                p.add_run().add_picture(io.BytesIO(bytes_data), width=Inches(width_val))
+            except:
+                p.add_run(fallback_text).bold = True
+        else:
+            p.add_run(fallback_text).bold = True
 
-    cell_aws = logo_table.rows[0].cells[2]
-    cell_aws.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-    if branding_info.get('aws_adv_logo_bytes'):
-        try:
-            cell_aws.paragraphs[0].add_run().add_picture(io.BytesIO(branding_info['aws_adv_logo_bytes']), width=aws_width)
-        except:
-            cell_aws.paragraphs[0].add_run("AWS Advanced")
+    insert_logo_to_cell(logo_table.rows[0].cells[0], branding_info.get('customer_logo_bytes'), 1.4, "[Customer Logo]")
+    insert_logo_to_cell(logo_table.rows[0].cells[1], branding_info.get('oneture_logo_bytes'), 2.2, "ONETURE")
+    insert_logo_to_cell(logo_table.rows[0].cells[2], branding_info.get('aws_adv_logo_bytes'), 1.3, "AWS Advanced")
 
     doc.add_paragraph("\n" * 4)
     
@@ -124,10 +109,9 @@ def create_docx_logic(text_content, branding_info):
     run.font.size = Pt(12)
     run.font.bold = True
     
-    # --- END PAGE 1 ---
     doc.add_page_break()
     
-    # --- PAGE 2 ONWARDS: CONTENT ---
+    # --- CONTENT PROCESSING ---
     style = doc.styles['Normal']
     style.font.name = 'Arial'
     style.font.size = Pt(11)
@@ -139,17 +123,22 @@ def create_docx_logic(text_content, branding_info):
     while i < len(lines):
         line = lines[i].strip()
         
-        # Start Section 1 (Table of Contents) on Page 2
-        if "1 TABLE OF CONTENTS" in line.upper():
+        # Force Page Break for "2 PROJECT OVERVIEW" to start on Page 3
+        # Clean line check to catch variants like "# 2 PROJECT OVERVIEW" or "2 PROJECT OVERVIEW"
+        clean_check = line.replace('#', '').strip().upper()
+        if "2 PROJECT OVERVIEW" in clean_check:
+            doc.add_page_break()
+            in_toc_section = False
+
+        # Start Section 1 (TOC)
+        if "1 TABLE OF CONTENTS" in clean_check:
             in_toc_section = True
             doc.add_heading("1 TABLE OF CONTENTS", level=1)
             i += 1
             continue
-        
-        # End Page 2 isolation: Move Section 2 to Page 3
-        if in_toc_section and (line.startswith("# 2") or ("PROJECT OVERVIEW" in line.upper() and line.startswith("#"))):
-            doc.add_page_break()
-            in_toc_section = False
+
+        # Global markdown artifact cleanup (remove unnecessary asterisks)
+        line_clean = line.replace('**', '').replace('*', '')
 
         # Markdown Table Detection
         if line.startswith('|') and i + 1 < len(lines) and lines[i+1].strip().startswith('|'):
@@ -190,16 +179,15 @@ def create_docx_logic(text_content, branding_info):
             if in_toc_section:
                 p.paragraph_format.left_indent = Inches(0.8)
         elif line.startswith('- ') or line.startswith('* '):
-            p = doc.add_paragraph(line[2:], style='List Bullet')
+            text = line[2:].strip().replace('**', '').replace('*', '')
+            p = doc.add_paragraph(text, style='List Bullet')
             if in_toc_section:
                 p.paragraph_format.left_indent = Inches(0.4)
         else:
-            p = doc.add_paragraph(line)
-            # Formatting for TOC sub-items
-            if in_toc_section and len(line) > 3 and line[0].isdigit() and (line[1] == '.' or (line[1].isdigit() and line[2] == '.')):
+            p = doc.add_paragraph(line_clean)
+            if in_toc_section and len(line_clean) > 3 and line_clean[0].isdigit():
                  p.paragraph_format.left_indent = Inches(0.4)
-            # Check for Assumptions/Dependencies segregation labels
-            if "DEPENDENCIES:" in line.upper() or "ASSUMPTIONS:" in line.upper():
+            if "DEPENDENCIES:" in line_clean.upper() or "ASSUMPTIONS:" in line_clean.upper():
                 p.runs[0].bold = True
         i += 1
             
@@ -287,7 +275,7 @@ st.header("2. Objectives & Stakeholders")
 st.subheader("🎯 2.1 Objective")
 objective = st.text_area(
     "Define the core business objective:", 
-    placeholder="e.g., Development of a Gen AI based WIMO Bot...",
+    placeholder="e.g., Development of a Gen AI based WIMO Bot to demonstrate feasibility...",
     height=120
 )
 outcomes = st.multiselect(
@@ -333,7 +321,7 @@ if st.button("✨ Generate SOW Document", type="primary", use_container_width=Tr
             Generate a COMPLETE formal enterprise Scope of Work (SOW) for {final_solution} in {final_industry}.
             
             MANDATORY STRUCTURE:
-            1 TABLE OF CONTENTS (Clean list with indentation)
+            1 TABLE OF CONTENTS (Clean indented list)
             2 PROJECT OVERVIEW
               2.1 OBJECTIVE
               2.2 PROJECT SPONSOR(S) / STAKEHOLDER(S) / PROJECT TEAM
@@ -343,13 +331,13 @@ if st.button("✨ Generate SOW Document", type="primary", use_container_width=Tr
             4 SOLUTION ARCHITECTURE / ARCHITECTURAL DIAGRAM
             5 RESOURCES & COST ESTIMATES
 
-            MANDATORY CONTENT RULES:
+            CONTENT RULES:
             - NO filler text or introductory sentences between headers 2, 2.1, 2.2, and 2.3.
             - Section 2 must start immediately with 2.1 Objective.
-            - Section 2.2 follows immediately with the provided tables.
-            - Section 2.3 must have two clearly labeled subsections: "Dependencies:" and "Assumptions:". Segregate them well with bulleted points.
-            - DO NOT add extra headers like "### Partner Sponsor" before each table in Section 2.2. Use plain text sub-labels if needed.
-            - Ensure there are NO unnecessary asterisks (*) or markdown bolding marks inside headings or transitions.
+            - Follow immediately with 2.2 using the provided tables. Provide plain text sub-labels for each table.
+            - Follow immediately with 2.3. Segregate into "Dependencies:" and "Assumptions:" with bullet points.
+            - Remove ALL unnecessary asterisks (*) or markdown bolding marks (**) inside headings, body text, or labels.
+            - Do not output strings like **2.1 Objective**. Output plain text like 2.1 Objective.
 
             INPUT DETAILS:
             - Engagement Type: {engagement_type}
@@ -368,7 +356,7 @@ if st.button("✨ Generate SOW Document", type="primary", use_container_width=Tr
             
             payload = {
                 "contents": [{"parts": [{"text": prompt_text}]}],
-                "systemInstruction": {"parts": [{"text": "You are a senior Solutions Architect. You generate detailed SOW documents. Strictly follow numbering. No filler text between subsections. No extra asterisks."}]}
+                "systemInstruction": {"parts": [{"text": "You are a senior Solutions Architect. You generate detailed SOW documents. Strictly follow numbering. No filler text between subsections. No markdown bolding marks or asterisks in the output text."}]}
             }
             
             try:
