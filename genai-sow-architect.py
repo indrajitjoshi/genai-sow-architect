@@ -1,16 +1,11 @@
 import streamlit as st
-import requests
-import json
 import pandas as pd
-import time
-from docx import Document
-from docx.shared import Inches, Pt, RGBColor
-from docx.enum.text import WD_ALIGN_PARAGRAPH
 from io import BytesIO
 from datetime import date
 import os
 
 # --- CONFIGURATION ---
+# Page config must be the first Streamlit command
 st.set_page_config(
     page_title="GenAI SOW Architect", 
     layout="wide", 
@@ -54,11 +49,15 @@ st.markdown("""
 
 # --- CACHED UTILITIES ---
 @st.cache_data
-def get_docx_bytes(text_content, branding_info):
+def generate_docx_cached(text_content, branding_info):
     """
-    Generates the Word document. Cached to prevent redundant processing 
-    during UI reruns unless content actually changes.
+    Generates the Word document. Heavy imports are inside the function 
+    to speed up initial app launch.
     """
+    from docx import Document
+    from docx.shared import Inches, Pt, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
     doc = Document()
     
     # --- PAGE 1: COVER PAGE ---
@@ -69,11 +68,11 @@ def get_docx_bytes(text_content, branding_info):
             p_top.alignment = WD_ALIGN_PARAGRAPH.LEFT
             run = p_top.add_run()
             run.add_picture(BytesIO(branding_info['aws_pn_logo_bytes']), width=Inches(1.0))
-        except Exception:
+        except:
             p = doc.add_paragraph("aws partner network")
             p.alignment = WD_ALIGN_PARAGRAPH.LEFT
 
-    doc.add_paragraph("\n" * 2)
+    doc.add_paragraph("\n" * 3)
     
     # 2. Solution Name & Subtitle (CENTER)
     title_p = doc.add_paragraph()
@@ -96,12 +95,12 @@ def get_docx_bytes(text_content, branding_info):
             p_logo = doc.add_paragraph()
             p_logo.alignment = WD_ALIGN_PARAGRAPH.CENTER
             run = p_logo.add_run()
-            run.add_picture(BytesIO(branding_info['customer_logo_bytes']), width=Inches(1.8))
-        except Exception:
+            run.add_picture(BytesIO(branding_info['customer_logo_bytes']), width=Inches(2.0))
+        except:
             p_err = doc.add_paragraph("[Customer Logo Image]")
             p_err.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
-    doc.add_paragraph("\n" * 3)
+    doc.add_paragraph("\n" * 4)
     
     # 4. Oneture (Bottom Left) and AWS Advanced Tier (Bottom Right)
     bottom_table = doc.add_table(rows=1, cols=2)
@@ -114,8 +113,8 @@ def get_docx_bytes(text_content, branding_info):
     if branding_info.get('oneture_logo_bytes'):
         try:
             run = p_oneture.add_run()
-            run.add_picture(BytesIO(branding_info['oneture_logo_bytes']), width=Inches(1.1))
-        except Exception:
+            run.add_picture(BytesIO(branding_info['oneture_logo_bytes']), width=Inches(1.2))
+        except:
             p_oneture.add_run("ONETURE").font.bold = True
     
     # AWS Advanced Logo (Right Cell)
@@ -125,15 +124,15 @@ def get_docx_bytes(text_content, branding_info):
     if branding_info.get('aws_adv_logo_bytes'):
         try:
             run = p_aws.add_run()
-            run.add_picture(BytesIO(branding_info['aws_adv_logo_bytes']), width=Inches(1.1))
-        except Exception:
+            run.add_picture(BytesIO(branding_info['aws_adv_logo_bytes']), width=Inches(1.2))
+        except:
             p_aws.add_run("aws PARTNER Advanced Tier").font.bold = True
 
     # 5. Date (BOTTOM CENTER)
     date_p = doc.add_paragraph()
     date_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = date_p.add_run(branding_info['doc_date_str'])
-    run.font.size = Pt(11)
+    run.font.size = Pt(12)
     run.font.bold = True
     
     doc.add_page_break()
@@ -305,48 +304,61 @@ if st.button("✨ Generate SOW Document", type="primary", use_container_width=Tr
     elif not objective:
         st.error("⚠️ Business Objective is required.")
     else:
+        # Move requests import inside to save startup time
+        import requests
         with st.spinner(f"Architecting SOW for {final_solution}..."):
             url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key={api_key}"
             
             def get_md(df):
-                try:
-                    return df.to_markdown(index=False)
-                except:
-                    # Fallback if tabulate is missing
-                    return df.to_string(index=False)
+                return df.to_markdown(index=False)
 
-            prompt_text = f"Generate a COMPLETE formal enterprise Scope of Work (SOW) for {final_solution} in {final_industry}.\n\nObjective: {objective}\nMetrics: {outcomes}\nSponsors:\n{get_md(st.session_state.stakeholders['Partner'])}\n\nMaintain Nykaa/Jubilant PDF standards."
-            system_prompt = "You are a senior Solutions Architect at Oneture. You generate detailed SOWs matching the standards of Nykaa and Jubilant PDF documents."
+            prompt_text = f"""
+            Generate a COMPLETE formal enterprise Scope of Work (SOW) for {final_solution} in {final_industry}.
+            
+            INPUT DETAILS:
+            - Engagement Type: {engagement_type}
+            - Primary Objective: {objective}
+            - Success Metrics: {', '.join(outcomes)}
+            - Timeline: {duration}
+            
+            STAKEHOLDER TABLES:
+            ### Partner Sponsor:
+            {get_md(st.session_state.stakeholders["Partner"])}
+            ### Customer Sponsor:
+            {get_md(st.session_state.stakeholders["Customer"])}
+            ### AWS Sponsor:
+            {get_md(st.session_state.stakeholders["AWS"])}
+            ### Escalation Contacts:
+            {get_md(st.session_state.stakeholders["Escalation"])}
+            
+            STRICT STRUCTURE:
+            1 TABLE OF CONTENTS
+            2 PROJECT OVERVIEW
+              2.1 OBJECTIVE
+              2.2 PROJECT SPONSOR(S) / STAKEHOLDER(S) / PROJECT TEAM
+              2.3 ASSUMPTIONS & DEPENDENCIES
+              2.4 PROJECT SUCCESS CRITERIA
+            3 SCOPE OF WORK – TECHNICAL PROJECT PLAN
+            4 SOLUTION ARCHITECTURE / ARCHITECTURAL DIAGRAM
+            5 RESOURCES & COST ESTIMATES
+
+            Tone: Professional consulting. Output: Markdown only.
+            """
             
             payload = {
                 "contents": [{"parts": [{"text": prompt_text}]}],
-                "systemInstruction": {"parts": [{"text": system_prompt}]}
+                "systemInstruction": {"parts": [{"text": "You are a senior Solutions Architect at Oneture. You generate detailed SOWs matching the standards of Nykaa and Jubilant PDF documents."}]}
             }
             
-            # Implementation of Exponential Backoff
-            retries = 5
-            success = False
-            for i in range(retries):
-                try:
-                    res = requests.post(url, json=payload, timeout=45)
-                    if res.status_code == 200:
-                        st.session_state.generated_sow = res.json()['candidates'][0]['content']['parts'][0]['text']
-                        st.balloons()
-                        success = True
-                        break
-                    elif res.status_code == 500 or res.status_code == 503 or res.status_code == 429:
-                        # Temporary server issues - wait and retry
-                        time.sleep(2**i)
-                        continue
-                    else:
-                        st.error(f"API Error: {res.text}")
-                        break
-                except requests.exceptions.RequestException:
-                    time.sleep(2**i)
-                    continue
-            
-            if not success:
-                st.error("The server encountered a temporary error and could not complete your request. Please try again in 30 seconds.")
+            try:
+                res = requests.post(url, json=payload)
+                if res.status_code == 200:
+                    st.session_state.generated_sow = res.json()['candidates'][0]['content']['parts'][0]['text']
+                    st.balloons()
+                else:
+                    st.error(f"API Error: {res.text}")
+            except Exception as e:
+                st.error(f"Error: {str(e)}")
 
 # --- STEP 3: REVIEW & EXPORT ---
 if st.session_state.generated_sow:
@@ -355,6 +367,8 @@ if st.session_state.generated_sow:
     tab_edit, tab_preview = st.tabs(["✍️ Document Editor", "📄 Visual Preview"])
     
     with tab_edit:
+        # Use a localized state to avoid constant script re-runs while typing
+        # Key 'sow_editor' ensures Streamlit handles state efficiently
         st.session_state.generated_sow = st.text_area(
             label="Modify generated content:", 
             value=st.session_state.generated_sow, 
@@ -369,6 +383,8 @@ if st.session_state.generated_sow:
     
     st.write("")
     
+    # Efficient Preparation for Download
+    # We only bundle the branding data if the generated SOW exists
     branding_info = {
         'solution_name': final_solution,
         'aws_pn_logo_bytes': aws_pn_logo.getvalue() if aws_pn_logo else None,
@@ -378,7 +394,9 @@ if st.session_state.generated_sow:
         'doc_date_str': doc_date.strftime("%d %B %Y")
     }
     
-    docx_data = get_docx_bytes(st.session_state.generated_sow, branding_info)
+    # Generate bytes via cached function. 
+    # Because 'st.cache_data' is used, this won't crawl the CPU unless text or images actually change.
+    docx_data = generate_docx_cached(st.session_state.generated_sow, branding_info)
     
     st.download_button(
         label="📥 Download Microsoft Word (.docx)", 
