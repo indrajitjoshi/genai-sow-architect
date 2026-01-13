@@ -47,7 +47,8 @@ st.markdown("""
 # --- CACHED UTILITIES ---
 def create_docx_logic(text_content, branding_info):
     """
-    Generates the Word document. Heavy imports are inside to speed up launch.
+    Generates the Word document.
+    Ensures Section 1 (Table of Contents) is on Page 2 alone.
     """
     from docx import Document
     from docx.shared import Inches, Pt, RGBColor
@@ -56,7 +57,6 @@ def create_docx_logic(text_content, branding_info):
     doc = Document()
     
     # --- PAGE 1: COVER PAGE ---
-    # 1. AWS Partner Network Logo (TOP LEFT)
     if branding_info.get('aws_pn_logo_bytes'):
         try:
             p_top = doc.add_paragraph()
@@ -68,7 +68,6 @@ def create_docx_logic(text_content, branding_info):
 
     doc.add_paragraph("\n" * 3) # Spacing
     
-    # 2. Solution Name & Subtitle (CENTER)
     title_p = doc.add_paragraph()
     title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = title_p.add_run(branding_info['solution_name'])
@@ -83,51 +82,40 @@ def create_docx_logic(text_content, branding_info):
     
     doc.add_paragraph("\n" * 4) # Spacing to logos
     
-    # 3. Logo Row: Customer | Oneture | AWS Advanced Tier (SINGLE LINE, SPECIFIC SIZES)
     logo_table = doc.add_table(rows=1, cols=3)
     logo_table.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
-    # Define widths as requested
+    # logo sizes: Customer 1.4, Oneture 2.2, AWS 1.3
     cust_width = Inches(1.4)
     oneture_width = Inches(2.2)
     aws_width = Inches(1.3)
     
-    # Cell 1: Customer Logo
     cell_cust = logo_table.rows[0].cells[0]
-    p_cust = cell_cust.paragraphs[0]
-    p_cust.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    cell_cust.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
     if branding_info.get('customer_logo_bytes'):
         try:
-            run = p_cust.add_run()
-            run.add_picture(io.BytesIO(branding_info['customer_logo_bytes']), width=cust_width)
+            cell_cust.paragraphs[0].add_run().add_picture(io.BytesIO(branding_info['customer_logo_bytes']), width=cust_width)
         except:
-            p_cust.add_run("[Customer Logo]")
+            cell_cust.paragraphs[0].add_run("[Customer Logo]")
             
-    # Cell 2: Oneture Logo
     cell_one = logo_table.rows[0].cells[1]
-    p_one = cell_one.paragraphs[0]
-    p_one.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    cell_one.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
     if branding_info.get('oneture_logo_bytes'):
         try:
-            run = p_one.add_run()
-            run.add_picture(io.BytesIO(branding_info['oneture_logo_bytes']), width=oneture_width)
+            cell_one.paragraphs[0].add_run().add_picture(io.BytesIO(branding_info['oneture_logo_bytes']), width=oneture_width)
         except:
-            p_one.add_run("ONETURE")
+            cell_one.paragraphs[0].add_run("ONETURE")
 
-    # Cell 3: AWS Advanced Logo
     cell_aws = logo_table.rows[0].cells[2]
-    p_aws = cell_aws.paragraphs[0]
-    p_aws.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    cell_aws.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
     if branding_info.get('aws_adv_logo_bytes'):
         try:
-            run = p_aws.add_run()
-            run.add_picture(io.BytesIO(branding_info['aws_adv_logo_bytes']), width=aws_width)
+            cell_aws.paragraphs[0].add_run().add_picture(io.BytesIO(branding_info['aws_adv_logo_bytes']), width=aws_width)
         except:
-            p_aws.add_run("AWS Advanced")
+            cell_aws.paragraphs[0].add_run("AWS Advanced")
 
     doc.add_paragraph("\n" * 4) # Spacing to date
     
-    # 5. Date (BOTTOM CENTER)
     date_p = doc.add_paragraph()
     date_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = date_p.add_run(branding_info['doc_date_str'])
@@ -136,15 +124,31 @@ def create_docx_logic(text_content, branding_info):
     
     doc.add_page_break()
     
-    # --- PAGE 2 ONWARDS: CONTENT ---
+    # --- PAGE 2 ONWARDS: CONTENT WITH TOC ISOLATION ---
     style = doc.styles['Normal']
     style.font.name = 'Arial'
     style.font.size = Pt(11)
 
     lines = text_content.split('\n')
     i = 0
+    in_toc_section = False
+
     while i < len(lines):
         line = lines[i].strip()
+        
+        # Start Section 1 (Table of Contents) on its own page
+        if "1 TABLE OF CONTENTS" in line.upper():
+            in_toc_section = True
+            doc.add_heading("1 TABLE OF CONTENTS", level=1)
+            i += 1
+            continue
+        
+        # End TOC Isolation: Move Section 2 to Page 3
+        if in_toc_section and (line.startswith("# 2") or "PROJECT OVERVIEW" in line.upper() and line.startswith("#")):
+            doc.add_page_break()
+            in_toc_section = False
+
+        # Table detection
         if line.startswith('|') and i + 1 < len(lines) and lines[i+1].strip().startswith('|'):
             table_lines = []
             while i < len(lines) and lines[i].strip().startswith('|'):
@@ -172,13 +176,21 @@ def create_docx_logic(text_content, branding_info):
         elif line.startswith('# '):
             doc.add_heading(line[2:], level=1)
         elif line.startswith('## '):
-            doc.add_heading(line[3:], level=2)
+            p = doc.add_heading(line[3:], level=2)
+            if in_toc_section:
+                p.paragraph_format.left_indent = Inches(0.5) # Indentation for TOC items
         elif line.startswith('### '):
             doc.add_heading(line[4:], level=3)
         elif line.startswith('- ') or line.startswith('* '):
-            doc.add_paragraph(line[2:], style='List Bullet')
+            p = doc.add_paragraph(line[2:], style='List Bullet')
+            if in_toc_section:
+                p.paragraph_format.left_indent = Inches(0.5)
         else:
-            doc.add_paragraph(line)
+            p = doc.add_paragraph(line)
+            if in_toc_section:
+                # Basic indentation for sub-items in TOC if they don't have markers
+                if any(char.isdigit() for char in line[:4]):
+                    p.paragraph_format.left_indent = Inches(0.5)
         i += 1
             
     bio = io.BytesIO()
@@ -247,16 +259,14 @@ st.title("🚀 GenAI Scope of Work Architect")
 
 # --- STEP 0: COVER PAGE BRANDING ---
 st.header("📸 Cover Page Branding")
-st.info("Upload the logos to recreate the cover page title layout. All logos will be placed side-by-side.")
-
 brand_col1, brand_col2 = st.columns(2)
 with brand_col1:
     aws_pn_logo = st.file_uploader("Top Left: AWS Partner Network Logo", type=['png', 'jpg', 'jpeg'], key="aws_pn")
-    customer_logo = st.file_uploader("Center Position: Customer Logo", type=['png', 'jpg', 'jpeg'], key="cust_logo")
+    customer_logo = st.file_uploader("Logo Slot 1: Customer Logo", type=['png', 'jpg', 'jpeg'], key="cust_logo")
 
 with brand_col2:
-    oneture_logo = st.file_uploader("Bottom Left Position: Oneture Logo", type=['png', 'jpg', 'jpeg'], key="one_logo")
-    aws_adv_logo = st.file_uploader("Bottom Right Position: AWS Advanced Tier Logo", type=['png', 'jpg', 'jpeg'], key="aws_adv")
+    oneture_logo = st.file_uploader("Logo Slot 2: Oneture Logo", type=['png', 'jpg', 'jpeg'], key="one_logo")
+    aws_adv_logo = st.file_uploader("Logo Slot 3: AWS Advanced Logo", type=['png', 'jpg', 'jpeg'], key="aws_adv")
     doc_date = st.date_input("Document Date", date.today())
 
 st.divider()
@@ -264,10 +274,9 @@ st.divider()
 # --- STEP 2: OBJECTIVES & STAKEHOLDERS ---
 st.header("2. Objectives & Stakeholders")
 
-# 2.1 OBJECTIVE
 st.subheader("🎯 2.1 Objective")
 objective = st.text_area(
-    "Define the core business objective and problem statement:", 
+    "Define the core business objective:", 
     placeholder="e.g., Development of a Gen AI based WIMO Bot to demonstrate feasibility...",
     height=120
 )
@@ -279,12 +288,11 @@ outcomes = st.multiselect(
 
 st.divider()
 
-# 2.2 PROJECT STAKEHOLDERS
 st.subheader("👥 2.2 Project Sponsor(s) / Stakeholder(s) / Project Team")
 col_team1, col_team2 = st.columns(2)
 
 with col_team1:
-    st.markdown('<div class="stakeholder-header">Partner Executive Sponsor (Oneture)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="stakeholder-header">Partner Executive Sponsor</div>', unsafe_allow_html=True)
     st.session_state.stakeholders["Partner"] = st.data_editor(st.session_state.stakeholders["Partner"], num_rows="dynamic", use_container_width=True, key="ed_partner")
 
     st.markdown('<div class="stakeholder-header">AWS Executive Sponsor</div>', unsafe_allow_html=True)
@@ -314,23 +322,7 @@ if st.button("✨ Generate SOW Document", type="primary", use_container_width=Tr
             prompt_text = f"""
             Generate a COMPLETE formal enterprise Scope of Work (SOW) for {final_solution} in {final_industry}.
             
-            INPUT DETAILS:
-            - Engagement Type: {engagement_type}
-            - Primary Objective: {objective}
-            - Success Metrics: {', '.join(outcomes)}
-            - Timeline: {duration}
-            
-            STAKEHOLDER TABLES:
-            ### Partner Sponsor:
-            {get_md(st.session_state.stakeholders["Partner"])}
-            ### Customer Sponsor:
-            {get_md(st.session_state.stakeholders["Customer"])}
-            ### AWS Sponsor:
-            {get_md(st.session_state.stakeholders["AWS"])}
-            ### Escalation Contacts:
-            {get_md(st.session_state.stakeholders["Escalation"])}
-            
-            STRICT STRUCTURE:
+            STRUCTURE:
             1 TABLE OF CONTENTS
             2 PROJECT OVERVIEW
               2.1 OBJECTIVE
@@ -341,12 +333,24 @@ if st.button("✨ Generate SOW Document", type="primary", use_container_width=Tr
             4 SOLUTION ARCHITECTURE / ARCHITECTURAL DIAGRAM
             5 RESOURCES & COST ESTIMATES
 
+            INPUT DETAILS:
+            - Engagement Type: {engagement_type}
+            - Primary Objective: {objective}
+            - Success Metrics: {', '.join(outcomes)}
+            - Timeline: {duration}
+            
+            STAKEHOLDER TABLES:
+            {get_md(st.session_state.stakeholders["Partner"])}
+            {get_md(st.session_state.stakeholders["Customer"])}
+            {get_md(st.session_state.stakeholders["AWS"])}
+            {get_md(st.session_state.stakeholders["Escalation"])}
+
             Tone: Professional consulting. Output: Markdown only.
             """
             
             payload = {
                 "contents": [{"parts": [{"text": prompt_text}]}],
-                "systemInstruction": {"parts": [{"text": "You are a senior Solutions Architect at Oneture. You generate detailed SOWs matching the standards of Nykaa and Jubilant PDF documents."}]}
+                "systemInstruction": {"parts": [{"text": "You are a senior Solutions Architect. You generate detailed SOWs matching enterprise standards. Ensure Section 1 is a clean Table of Contents."}]}
             }
             
             try:
