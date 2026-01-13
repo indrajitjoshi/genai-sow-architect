@@ -124,6 +124,7 @@ def create_docx_logic(text_content, branding_info):
     i = 0
     in_toc_section = False
     toc_already_added = False
+    overview_started = False
 
     while i < len(lines):
         line = lines[i].strip()
@@ -134,14 +135,19 @@ def create_docx_logic(text_content, branding_info):
             i += 1
             continue
 
-        # Prepare strings for structure detection
-        clean_text = line.replace('#', '').strip().replace('**', '').replace('*', '')
+        # Prepare strings for structure detection - Use regex for cleaner stripping
+        # Remove markdown bolding and italics artifacts
+        line_clean = re.sub(r'\*+', '', line).strip()
+        # Extract title text without header markers
+        clean_text = re.sub(r'^#+\s*', '', line_clean).strip()
         upper_text = clean_text.upper()
 
         # 1. Page Break Trigger: Section 2 MUST start on Page 3
-        if line.startswith('#') and "2 PROJECT OVERVIEW" in upper_text:
+        # Detection matches any line starting with 2 and PROJECT OVERVIEW, or a header with it
+        if ("2 PROJECT OVERVIEW" in upper_text) and (line.startswith('#') or line.startswith('2')) and not overview_started:
             doc.add_page_break()
             in_toc_section = False
+            overview_started = True
             doc.add_heading(clean_text, level=1)
             i += 1
             continue
@@ -191,7 +197,9 @@ def create_docx_logic(text_content, branding_info):
             if in_toc_section:
                 p.paragraph_format.left_indent = Inches(0.8)
         elif line.startswith('- ') or line.startswith('* '):
-            p = doc.add_paragraph(clean_text, style='List Bullet')
+            # Strip the bullet marker for standard list rendering
+            bullet_text = re.sub(r'^[-*]\s*', '', clean_text)
+            p = doc.add_paragraph(bullet_text, style='List Bullet')
             if in_toc_section:
                 p.paragraph_format.left_indent = Inches(0.4)
         else:
@@ -200,9 +208,10 @@ def create_docx_logic(text_content, branding_info):
             if in_toc_section and len(clean_text) > 3 and clean_text[0].isdigit():
                  p.paragraph_format.left_indent = Inches(0.4)
             
-            # Segregation bolding logic for key category labels
+            # Segregation bolding logic for key category labels in Project Overview
             if any(key in upper_text for key in ["DEPENDENCIES:", "ASSUMPTIONS:", "SPONSOR:", "CONTACTS:"]):
-                p.runs[0].bold = True
+                if p.runs:
+                    p.runs[0].bold = True
         i += 1
             
     bio = io.BytesIO()
@@ -335,7 +344,7 @@ if st.button("✨ Generate SOW Document", type="primary", use_container_width=Tr
             Generate a COMPLETE formal enterprise Scope of Work (SOW) for {final_solution} in {final_industry}.
             
             MANDATORY STRUCTURE:
-            1 TABLE OF CONTENTS (Detailed indented list)
+            1 TABLE OF CONTENTS (Indented sub-items)
             2 PROJECT OVERVIEW
               2.1 OBJECTIVE
               2.2 PROJECT SPONSOR(S) / STAKEHOLDER(S) / PROJECT TEAM
@@ -351,7 +360,7 @@ if st.button("✨ Generate SOW Document", type="primary", use_container_width=Tr
             - Section 2.2 must keep all stakeholder sections distinct with provided tables.
             - Section 2.3 must clearly segregate into "Dependencies:" and "Assumptions:" labels with bulleted lists.
             - Remove ALL unnecessary asterisks (*) or markdown bolding marks (**) inside text or headings. 
-            - Use plain text output only for document content. No markdown symbols.
+            - Use plain text output only for document content. No markdown symbols like bolding or italics in the body.
 
             INPUT DETAILS:
             - Engagement Type: {engagement_type}
@@ -370,7 +379,7 @@ if st.button("✨ Generate SOW Document", type="primary", use_container_width=Tr
             
             payload = {
                 "contents": [{"parts": [{"text": prompt_text}]}],
-                "systemInstruction": {"parts": [{"text": "You are a senior Solutions Architect. You generate detailed SOW documents. Strictly follow numbering. NO filler text. NO markdown bolding marks or asterisks in the output text."}]}
+                "systemInstruction": {"parts": [{"text": "You are a senior Solutions Architect. You generate detailed SOW documents. Strictly follow numbering. NO filler text. NO markdown bolding marks or asterisks in the output text. Plain text output only."}]}
             }
             
             try:
