@@ -129,7 +129,7 @@ def create_docx_logic(text_content, branding, sow_name):
     dt.add_run(branding["doc_date_str"]).bold = True
     doc.add_page_break()
 
-    # OUTPUT SECTION MAPPING (STRICT 1-5 Numbering)
+    # OUTPUT SECTION MAPPING (STRICT 1-5 Numbering as requested)
     headers_map = {
         "1": "TABLE OF CONTENTS", 
         "2": "PROJECT OVERVIEW", 
@@ -188,7 +188,7 @@ def create_docx_logic(text_content, branding, sow_name):
                     for idx, c_text in enumerate(cells_data):
                         if idx < len(r_cells):
                             p_r = r_cells[idx].paragraphs[0]
-                            # Handle Pricing Links for Section 4
+                            # Detect "link" placeholder to add AWS Calculator Hyperlink in Section 4
                             if "link" in c_text.lower():
                                 add_hyperlink(p_r, "AWS Cost Calculator Link", CALCULATOR_LINKS.get(sow_name, "https://calculator.aws/"))
                             else:
@@ -237,10 +237,10 @@ def init_state():
         }
     if 'timeline_phases' not in st.session_state:
         st.session_state.timeline_phases = pd.DataFrame([
-            {"Phase": "Infrastructure Setup", "Task": "Setup required AWS Services & gather documents", "Wk1": "Gray", "Wk2": "", "Wk3": "", "Wk4": ""},
-            {"Phase": "Create Core Workflows", "Task": "Banner Upload & Validation Flow / Compliance Flow", "Wk1": "Gray", "Wk2": "", "Wk3": "", "Wk4": ""},
-            {"Phase": "Backend Components", "Task": "Build Compliance Engine & Tagging Module", "Wk1": "", "Wk2": "Gray", "Wk3": "Gray", "Wk4": "Gray"},
-            {"Phase": "Feedback & Testing", "Task": "Test and Validate compliance accuracy vs manual results", "Wk1": "", "Wk2": "", "Wk3": "", "Wk4": "Gray"}
+            {"Phase": "Infrastructure Setup", "Task": "Setup required AWS Services & gather documents", "Wk1": "X", "Wk2": "", "Wk3": "", "Wk4": ""},
+            {"Phase": "Create Core Workflows", "Task": "Banner Upload & Validation Flow / Compliance Flow", "Wk1": "X", "Wk2": "", "Wk3": "", "Wk4": ""},
+            {"Phase": "Backend Components", "Task": "Build Compliance Engine & Tagging Module", "Wk1": "", "Wk2": "X", "Wk3": "X", "Wk4": "X"},
+            {"Phase": "Feedback & Testing", "Task": "Test and Validate compliance accuracy vs manual results", "Wk1": "", "Wk2": "", "Wk3": "", "Wk4": "X"}
         ])
 
 init_state()
@@ -249,7 +249,7 @@ def reset_all():
     for key in list(st.session_state.keys()): del st.session_state[key]
     init_state(); st.rerun()
 
-# --- INPUT SECTION (Preserved) ---
+# --- INPUT SECTION (PRESERVED) ---
 with st.sidebar:
     st.image("https://img.icons8.com/fluency/96/artificial-intelligence.png", width=60)
     st.title("Architect Pro")
@@ -259,11 +259,12 @@ with st.sidebar:
     sow_opts = list(SOW_DIAGRAM_MAP.keys())
     solution_type = st.selectbox("1.1 Solution Type", sow_opts)
     sow_key = solution_type
-    industry_type = st.selectbox("1.2 Industry", ["Retail", "BFSI", "Manufacturing", "Other"])
-    funding_src = st.selectbox("1.3 Funding Ownership", ["Jointly Funded by AWS & Oneture", "AWS Only", "Customer Funded", "Partner Only"])
+    engagement_type = st.selectbox("1.2 Engagement Type", ["Proof of Concept (PoC)", "Pilot", "MVP", "Production"])
+    industry_type = st.selectbox("1.3 Industry", ["Retail", "BFSI", "Manufacturing", "Other"])
+    funding_src = st.selectbox("1.4 Funding Ownership", ["Jointly Funded by AWS & Oneture", "AWS Only", "Customer Funded", "Partner Only"])
     if st.button("🗑️ Reset All", use_container_width=True): reset_all()
 
-# --- MAIN UI INPUTS (Preserved) ---
+# --- MAIN UI INPUTS (PRESERVED) ---
 st.title("🚀 GenAI SOW Architect")
 st.header("📸 1. Branding & Project Cover")
 col_cov1, col_cov2 = st.columns(2)
@@ -271,7 +272,7 @@ with col_cov1: customer_logo = st.file_uploader("Upload Customer Logo", type=["p
 with col_cov2: doc_date = st.date_input("Document Date", date.today())
 
 st.header("📄 2. Project Overview Inputs")
-biz_objective = st.text_area("2.1 Business Objective", placeholder="Example: Development of a Gen AI based Bot to demonstrate feasibility...", height=100)
+biz_objective = st.text_area("2.1 Business Objective", placeholder="Example: Development of a Gen AI based solution to automate compliance checks...", height=100)
 st.subheader("2.2 Stakeholders")
 st.session_state.stakeholders["Partner"] = st.data_editor(st.session_state.stakeholders["Partner"], use_container_width=True, key="ed_p")
 st.session_state.stakeholders["Customer"] = st.data_editor(st.session_state.stakeholders["Customer"], use_container_width=True, key="ed_c")
@@ -279,9 +280,9 @@ st.session_state.stakeholders["AWS"] = st.data_editor(st.session_state.stakehold
 st.session_state.stakeholders["Escalation"] = st.data_editor(st.session_state.stakeholders["Escalation"], use_container_width=True, key="ed_e")
 
 st.subheader("2.3 Assumptions & Dependencies")
-deps = st.text_area("Key assumptions and dependencies", "Sample data provided by customer, AWS Bedrock access, SME availability for validation...")
+deps = st.text_area("Key assumptions and dependencies", "Sample data provided by customer, AWS access provided, SME availability for validation...")
 st.subheader("2.4 Success Criteria")
-success = st.text_area("PoC Success Metrics", "Accuracy > 85%, Latency < 3s, Successful demo of all flows...")
+success = st.text_area("PoC Success Metrics", "Accuracy > 85% compared to manual review, Latency < 2s...")
 
 st.header("📅 3. Technical Project Plan Inputs")
 st.session_state.timeline_phases = st.data_editor(st.session_state.timeline_phases, num_rows="dynamic", use_container_width=True, key="ed_t")
@@ -289,7 +290,7 @@ st.session_state.timeline_phases = st.data_editor(st.session_state.timeline_phas
 st.header("💰 5. Resources & Cost Estimates")
 res_cost_input = st.text_area("Additional Funding Details", f"The Project is {funding_src} as a 1-time investment to demonstrate capabilities of AWS and Oneture services.")
 
-# --- OUTPUT GENERATION LOGIC (RESTACKED) ---
+# --- OUTPUT GENERATION LOGIC (RESTRUCTURED) ---
 if st.button("✨ Generate Professional SOW", type="primary", use_container_width=True):
     with st.spinner("Processing document sequence..."):
         def get_md(df): return df.to_markdown(index=False)
@@ -326,11 +327,12 @@ if st.button("✨ Generate Professional SOW", type="primary", use_container_widt
         {success}
 
         # 3 SCOPE OF WORK - TECHNICAL PROJECT PLAN
+        (Use the following timeline data to generate a markdown table)
         {get_md(st.session_state.timeline_phases)}
-        Note: POC would be demoed iteratively for all the workflows across the 4 weeks of the POC.
+        POC would be demoed iteratively for all the workflows across the 4 weeks of the POC.
 
         # 4 SOLUTION ARCHITECTURE / ARCHITECTURAL DIAGRAM
-        (Architecture diagram image placement)
+        (Architecture diagram image will be placed here)
         ## Infrastructure Cost Breakdown Basis POC
         {cost_table}
 
