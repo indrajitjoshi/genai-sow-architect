@@ -375,7 +375,16 @@ nxt = st.multiselect("Next Steps:", ["Production proposal", "Scaling roadmap", "
 # --- MODIFIED GENERATION LOGIC ---
 if st.button("✨ Generate Full SOW", type="primary", use_container_width=True):
     with st.spinner("Refining document structure..."):
-        def get_md(df): return df.to_markdown(index=False)
+        # CUSTOM MD TABLE GENERATOR TO FIX tabulate IMPORT ERROR
+        def get_md(df):
+            if df.empty: return ""
+            headers = "| " + " | ".join(df.columns) + " |"
+            sep = "| " + " | ".join(["---"] * len(df.columns)) + " |"
+            rows = []
+            for _, row in df.iterrows():
+                rows.append("| " + " | ".join(str(val) for val in row) + " |")
+            return "\n".join([headers, sep] + rows)
+            
         cost_info = SOW_COST_TABLE_MAP.get(sow_key, {})
         cost_table = "| System | Infra Cost / month | AWS Calculator Cost |\n| --- | --- | --- |\n"
         for k,v in cost_info.items(): 
