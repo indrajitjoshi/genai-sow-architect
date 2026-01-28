@@ -18,17 +18,17 @@ AWS_ADV_LOGO = os.path.join(ASSETS_DIR, "aws advanced logo1.jpg")
 
 # Mapped Infra Costs
 SOW_COST_TABLE_MAP = { 
-    "L1 Support Bot POC SOW": { "POC": "3,536.40 USD" }, 
+    "L1 Support Bot POC SOW": { "poc_cost": "3,536.40 USD" }, 
     "Beauty Advisor POC SOW": { 
-        "POC": "1,213.04 USD + 100 USD (Amazon Bedrock Cost) = 1,313.04 USD", 
-        "Production": "1,213.04 USD + 2,970.06 (Amazon Bedrock Cost) = 4,183.1 USD" 
+        "poc_cost": "4,525.66 USD + 200 USD (Amazon Bedrock Cost) = 4,725.66", 
+        "prod_cost": "4,525.66 USD + 1,175.82 USD (Amazon Bedrock Cost) = 5,701.48" 
     }, 
-    "Ready Search POC Scope of Work Document":{ "POC": "2,641.40 USD" }, 
-    "AI based Image Enhancement POC SOW": { "POC": "2,814.34 USD" }, 
-    "AI based Image Inspection POC SOW": { "POC": "3,536.40 USD" }, 
-    "Gen AI for SOP POC SOW": { "POC": "2,110.30 USD" }, 
-    "Project Scope Document": { "Production": "2,993.60 USD" }, 
-    "Gen AI Speech To Speech": { "Production": "2,124.23 USD" }, 
+    "Ready Search POC Scope of Work Document":{ "poc_cost": "2,641.40 USD" }, 
+    "AI based Image Enhancement POC SOW": { "poc_cost": "2,814.34 USD" }, 
+    "AI based Image Inspection POC SOW": { "poc_cost": "3,536.40 USD" }, 
+    "Gen AI for SOP POC SOW": { "poc_cost": "2,110.30 USD" }, 
+    "Project Scope Document": { "prod_cost": "2,993.60 USD" }, 
+    "Gen AI Speech To Speech": { "prod_cost": "2,124.23 USD" }, 
     "PoC Scope Document": { "amazon_bedrock": "1,000 USD", "total": "$ 3,150" }
 }
 
@@ -58,7 +58,7 @@ SOW_DIAGRAM_MAP = {
 }
 
 # --- CONFIGURATION ---
-st.set_page_config(page_title="GenAI SOW Architect Pro", layout="wide", page_icon="📄")
+st.set_page_config(page_title="GenAI SOW Architect", layout="wide", page_icon="📄")
 
 st.markdown("""
     <style>
@@ -74,22 +74,26 @@ st.markdown("""
         color: #000000;
         font-family: "Times New Roman", Times, serif;
     }
-    .sow-preview a { color: #0000EE; text-decoration: underline; }
+    .sow-preview a {
+        color: #000000;
+        text-decoration: underline;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# Helper functions
 def add_hyperlink(paragraph, text, url):
     from docx.oxml.shared import qn, OxmlElement
     import docx.opc.constants
     part = paragraph.part
     r_id = part.relate_to(url, docx.opc.constants.RELATIONSHIP_TYPE.HYPERLINK, is_external=True)
     hyperlink = OxmlElement('w:hyperlink')
-    hyperlink.set(qn('r:id'), r_id, )
+    hyperlink.set(qn('r:id'), r_id)
     new_run = OxmlElement('w:r')
     rPr = OxmlElement('w:rPr')
-    c = OxmlElement('w:color'); c.set(qn('w:val'), '0000EE') 
-    u = OxmlElement('w:u'); u.set(qn('w:val'), 'single')
+    c = OxmlElement('w:color')
+    c.set(qn('w:val'), '000000') 
+    u = OxmlElement('w:u')
+    u.set(qn('w:val'), 'single')
     rPr.append(c); rPr.append(u); new_run.append(rPr)
     t = OxmlElement('w:t'); t.text = text
     new_run.append(t); hyperlink.append(new_run)
@@ -99,6 +103,8 @@ def create_docx_logic(text_content, branding, sow_name):
     from docx import Document
     from docx.shared import Inches, Pt, RGBColor
     from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml.shared import qn, OxmlElement
+    import io
     
     doc = Document()
     style = doc.styles['Normal']
@@ -112,25 +118,34 @@ def create_docx_logic(text_content, branding, sow_name):
     t = doc.add_paragraph(); t.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = t.add_run(branding['sow_name']); run.font.size = Pt(26); run.bold = True; run.font.name = 'Times New Roman'
     stitle = doc.add_paragraph(); stitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    stitle.add_run("Scope of Work Document").font.size = Pt(14)
+    run_s = stitle.add_run("Scope of Work Document"); run_s.font.size = Pt(14); run_s.font.name = 'Times New Roman'
     doc.add_paragraph("\n" * 4)
     
     l_table = doc.add_table(rows=1, cols=3); l_table.alignment = WD_ALIGN_PARAGRAPH.CENTER
     if branding.get("customer_logo_bytes"):
-        l_table.rows[0].cells[0].paragraphs[0].add_run().add_picture(io.BytesIO(branding["customer_logo_bytes"]), width=Inches(1.5))
+        l_table.rows[0].cells[0].paragraphs[0].add_run().add_picture(io.BytesIO(branding["customer_logo_bytes"]), width=Inches(1.8))
     if os.path.exists(ONETURE_LOGO):
-        l_table.rows[0].cells[1].paragraphs[0].add_run().add_picture(ONETURE_LOGO, width=Inches(1.8))
+        l_table.rows[0].cells[1].paragraphs[0].add_run().add_picture(ONETURE_LOGO, width=Inches(2.2))
     if os.path.exists(AWS_ADV_LOGO):
-        l_table.rows[0].cells[2].paragraphs[0].add_run().add_picture(AWS_ADV_LOGO, width=Inches(1.5))
+        l_table.rows[0].cells[2].paragraphs[0].add_run().add_picture(AWS_ADV_LOGO, width=Inches(1.8))
     
     doc.add_paragraph("\n" * 3)
     dt = doc.add_paragraph(); dt.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    dt.add_run(branding["doc_date_str"]).bold = True
+    run_dt = dt.add_run(branding["doc_date_str"]); run_dt.bold = True; run_dt.font.name = 'Times New Roman'
     doc.add_page_break()
 
-    # Section Headers Mapping (Updated Output Format to 5 Chapters)
+    # PAGE 2: TABLE OF CONTENTS
+    h_toc = doc.add_heading("1 TABLE OF CONTENTS", level=1)
+    for run in h_toc.runs: run.font.name, run.font.color.rgb = 'Times New Roman', RGBColor(0, 0, 0)
+    # Simple Manual TOC
+    toc_items = ["2 PROJECT OVERVIEW", "3 SCOPE OF WORK - TECHNICAL PROJECT PLAN", "4 SOLUTION ARCHITECTURE / ARCHITECTURAL DIAGRAM", "5 RESOURCES & COST ESTIMATES"]
+    for item in toc_items:
+        p_toc = doc.add_paragraph(item)
+        for run in p_toc.runs: run.font.name = 'Times New Roman'
+    doc.add_page_break()
+
+    # NEW SECTION MAPPING
     headers_map = {
-        "1": "TABLE OF CONTENTS",
         "2": "PROJECT OVERVIEW",
         "3": "SCOPE OF WORK - TECHNICAL PROJECT PLAN",
         "4": "SOLUTION ARCHITECTURE / ARCHITECTURAL DIAGRAM",
@@ -144,68 +159,75 @@ def create_docx_logic(text_content, branding, sow_name):
         if not line: i += 1; continue
         
         clean_line = re.sub(r'#+\s*', '', line).strip()
+        clean_line = re.sub(r'\*+', '', clean_line).strip()
         upper = clean_line.upper()
 
         current_id = None
         for h_id, h_title in headers_map.items():
             if re.match(rf"^{h_id}[\.\s]+{re.escape(h_title)}", upper):
                 current_id = h_id; break
-        
+
         if current_id:
-            if current_id != "1": doc.add_page_break()
-            h = doc.add_heading(clean_line.upper(), level=1)
-            for run in h.runs: 
-                run.font.name = 'Times New Roman'
-                run.font.color.rgb = RGBColor(0, 0, 0)
-            
-            # Section 4 Architecture Diagram Injection
-            if current_id == "4":
-                diag = SOW_DIAGRAM_MAP.get(sow_name)
-                if diag and os.path.exists(diag):
-                    doc.add_paragraph("\n")
-                    doc.add_picture(diag, width=Inches(5.8))
-                    p_cap = doc.add_paragraph(f"{sow_name} – Architecture Diagram")
-                    p_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    doc.add_paragraph("\n")
+            if current_id in ["2", "3", "4", "5"]:
+                if current_id != "2": doc.add_page_break()
+                h = doc.add_heading(clean_line.upper(), level=1)
+                for run in h.runs: 
+                    run.font.name = 'Times New Roman'
+                    run.font.color.rgb = RGBColor(0, 0, 0)
+                
+                # Injection logic for Section 4 Diagram
+                if current_id == "4":
+                    diag = SOW_DIAGRAM_MAP.get(sow_name)
+                    if diag and os.path.exists(diag):
+                        doc.add_picture(diag, width=Inches(5.5))
+                        p_cap = doc.add_paragraph(f"{sow_name} – Architecture Diagram")
+                        p_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        for run in p_cap.runs: run.font.name, run.font.color.rgb = 'Times New Roman', RGBColor(0,0,0)
+
             i += 1; continue
             
-        if line.startswith('|'):
+        # Tables processing
+        if line.startswith('|') and i + 1 < len(lines) and lines[i+1].strip().startswith('|'):
             table_lines = []
             while i < len(lines) and lines[i].strip().startswith('|'):
                 table_lines.append(lines[i]); i += 1
             if len(table_lines) >= 3:
                 cols = [c.strip() for c in table_lines[0].split('|') if c.strip()]
-                t_obj = doc.add_table(rows=1, cols=len(cols)); t_obj.style = "Table Grid"
+                t = doc.add_table(rows=1, cols=len(cols)); t.style = "Table Grid"
                 for idx, h_text in enumerate(cols):
-                    cell = t_obj.rows[0].cells[idx]
+                    cell = t.rows[0].cells[idx]
                     r_h = cell.paragraphs[0].add_run(h_text)
                     r_h.bold = True; r_h.font.name = 'Times New Roman'
                 for row_line in table_lines[2:]:
                     cells_data = [c.strip() for c in row_line.split('|') if c.strip()]
-                    r_cells = t_obj.add_row().cells
-                    for idx, c_text in enumerate(cells_data):
-                        if idx < len(r_cells):
-                            p_r = r_cells[idx].paragraphs[0]
-                            # Pricing Calculator Link logic for Section 4
-                            if "link" in c_text.lower():
-                                add_hyperlink(p_r, "Link", CALCULATOR_LINKS.get(sow_name, "https://calculator.aws/"))
+                    r = t.add_row().cells
+                    for idx, c_text in enumerate(cells_data): 
+                        if idx < len(r): 
+                            p_r = r[idx].paragraphs[0]
+                            if "estimate" in c_text.lower():
+                                calc_url = CALCULATOR_LINKS.get(sow_name, "https://calculator.aws/")
+                                add_hyperlink(p_r, "Estimate", calc_url)
                             else:
-                                run_cell = p_r.add_run(c_text)
-                                run_cell.font.name = 'Times New Roman'
+                                r_r = p_r.add_run(c_text)
+                                r_r.font.name = 'Times New Roman'
+                                r_r.font.color.rgb = RGBColor(0, 0, 0)
             continue
 
-        if line.startswith('## '):
-            h = doc.add_heading(clean_line, level=2)
-            for run in h.runs: run.font.color.rgb = RGBColor(0, 0, 0); run.font.name = 'Times New Roman'
-        elif line.startswith('### '):
-            h = doc.add_heading(clean_line, level=3)
-            for run in h.runs: run.font.color.rgb = RGBColor(0, 0, 0); run.font.name = 'Times New Roman'
+        # Normal text and subheadings
+        if line.startswith('## ') or line.startswith('### ') or re.match(r'^\d+\.\d+\s+', clean_line): 
+            lvl = 2 if (line.startswith('## ') or re.match(r'^\d+\.\d+\s+', clean_line)) else 3
+            h = doc.add_heading(clean_line, level=lvl)
+            for run in h.runs: run.font.name, run.font.color.rgb = 'Times New Roman', RGBColor(0, 0, 0)
         elif line.startswith('- ') or line.startswith('* '):
             p_b = doc.add_paragraph(style="List Bullet")
-            p_b.add_run(re.sub(r'^[\-\*]\s*', '', line)).font.name = 'Times New Roman'
+            bullet_clean = re.sub(r'^[\-\*]\s*', '', line).strip()
+            r_b = p_b.add_run(bullet_clean); r_b.font.name, r_b.font.color.rgb = 'Times New Roman', RGBColor(0, 0, 0)
         else:
             p_n = doc.add_paragraph()
-            p_n.add_run(clean_line).font.name = 'Times New Roman'
+            run_n = p_n.add_run(clean_line)
+            run_n.font.name, run_n.font.color.rgb = 'Times New Roman', RGBColor(0, 0, 0)
+            if any(k in upper for k in ["SPONSOR", "CONTACTS", "OBJECTIVE", "SUCCESS CRITERIA"]):
+                run_n.bold = True
         i += 1
         
     bio = io.BytesIO(); doc.save(bio); return bio.getvalue()
@@ -213,15 +235,16 @@ def create_docx_logic(text_content, branding, sow_name):
 def call_gemini_with_retry(payload, api_key_input=""):
     apiKey = api_key_input if api_key_input else ""
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key={apiKey}"
-    delays = [1, 2, 4]
+    delays = [1, 2, 4, 8, 16]
     for attempt in range(len(delays)):
         try:
             res = requests.post(url, json=payload, timeout=30)
             if res.status_code == 200: return res, None
             if res.status_code in [503, 429]: time.sleep(delays[attempt]); continue
             return None, f"API Error {res.status_code}: {res.text}"
-        except Exception: time.sleep(delays[attempt])
-    return None, "Model overloaded."
+        except requests.exceptions.RequestException as e:
+            time.sleep(delays[attempt])
+    return None, "Model overloaded. Try again."
 
 # --- INITIALIZATION ---
 def init_state():
@@ -231,101 +254,137 @@ def init_state():
             "Partner": pd.DataFrame([{"Name": "Gaurav Kankaria", "Title": "Head of Analytics & ML", "Email": "gaurav.kankaria@oneture.com"}]),
             "Customer": pd.DataFrame([{"Name": "Prabhjot Singh", "Title": "Marketing Manager", "Email": "prabhjot.singh5@jublfood.com"}]),
             "AWS": pd.DataFrame([{"Name": "Anubhav Sood", "Title": "AWS Account Executive", "Email": "anbhsood@amazon.com"}]),
-            "Escalation": pd.DataFrame([{"Name": "Omkar Dhavalikar", "Title": "AI/ML Lead", "Email": "omkar.dhavalikar@oneture.com"}])
+            "Escalation": pd.DataFrame([{"Name": "Omkar Dhavalikar", "Title": "AI/ML Lead", "Email": "omkar.dhavalikar@oneture.com"}, {"Name": "Gaurav Kankaria", "Title": "Head of Analytics and AIML", "Email": "gaurav.kankaria@oneture.com"}])
         }
     if 'timeline_phases' not in st.session_state:
         st.session_state.timeline_phases = pd.DataFrame([
-            {"Phase": "Infrastructure Setup", "Task": "Setup required AWS Services & gather documents", "Wk1": "X", "Wk2": "", "Wk3": "", "Wk4": ""},
-            {"Phase": "Create Core Workflows", "Task": "Banner Upload & Validation Flow / Compliance Flow", "Wk1": "X", "Wk2": "", "Wk3": "", "Wk4": ""},
-            {"Phase": "Backend Components", "Task": "Build Compliance Engine & Tagging Module", "Wk1": "", "Wk2": "X", "Wk3": "X", "Wk4": "X"},
-            {"Phase": "Feedback & Testing", "Task": "Test compliance accuracy against manual results", "Wk1": "", "Wk2": "", "Wk3": "", "Wk4": "X"}
+            {"Phase": "Infra setup", "Week": "Week 1"}, {"Phase": "Core workflows", "Week": "Week 2-3"},
+            {"Phase": "Testing & validation", "Week": "Week 3-4"}, {"Phase": "Demo & feedback", "Week": "Week 4"}
         ])
 
 init_state()
 
 def reset_all():
     for key in list(st.session_state.keys()): del st.session_state[key]
-    init_state(); st.rerun()
+    init_state()
+    st.rerun()
 
-# --- INPUT PARAMETERS (STRICTLY PRESERVED AS PER THE 10 SECTIONS) ---
+# --- SIDEBAR: 10 INPUTS PRESERVED EXACTLY ---
 with st.sidebar:
     st.image("https://img.icons8.com/fluency/96/artificial-intelligence.png", width=60)
     st.title("Architect Pro")
-    api_key = st.text_input("Gemini API Key", type="password")
+    with st.expander("🔑 API Key", expanded=True):
+        api_key = st.text_input("Gemini API Key", type="password")
     st.divider()
     st.header("📋 1. Project Intake")
-    sow_opts = list(SOW_DIAGRAM_MAP.keys())
+    sow_opts = ["1. L1 Support Bot POC SOW", "2. Beauty Advisor POC SOW", "3. Ready Search POC Scope of Work Document", "4. AI based Image Enhancement POC SOW", "5. AI based Image Inspection POC SOW", "6. Gen AI for SOP POC SOW", "7. Project Scope Document", "8. Gen AI Speech To Speech", "9. PoC Scope Document"]
     solution_type = st.selectbox("1.1 Solution Type", sow_opts)
-    sow_key = solution_type
-    engagement_type = st.selectbox("1.2 Engagement Type", ["PoC", "Pilot", "MVP", "Production Rollout", "Support"])
-    industry_type = st.selectbox("1.3 Industry / Domain", ["Retail / E-commerce", "BFSI", "Manufacturing", "Telecom", "Healthcare", "Other"])
-    final_industry = st.text_input("Specify Industry (if Other):") if industry_type == "Other" else industry_type
+    sow_key = solution_type.split(". ", 1)[1] if ". " in solution_type else solution_type
+    engagement_type = st.selectbox("1.2 Engagement Type", ["Proof of Concept (PoC)", "Pilot", "MVP", "Production Rollout", "Assessment / Discovery", "Support"])
+    industry_opts = ["Retail / E-commerce", "BFSI", "Manufacturing", "Telecom", "Healthcare", "Energy / Utilities", "Logistics", "Media", "Government", "Other (specify)"]
+    industry_type = st.selectbox("1.3 Industry / Domain", industry_opts)
+    final_industry = st.text_input("Specify Industry:") if industry_type == "Other (specify)" else industry_type
     if st.button("🗑️ Reset All", use_container_width=True): reset_all()
 
-st.title("🚀 GenAI SOW Architect")
-st.header("📸 1. Branding & Cover")
+# --- MAIN UI ---
+st.title("🚀 GenAI Scope of Work Architect")
+st.header("📸 Cover Page Branding")
 col_cov1, col_cov2 = st.columns(2)
 with col_cov1: customer_logo = st.file_uploader("Upload Customer Logo", type=["png", "jpg", "jpeg"])
 with col_cov2: doc_date = st.date_input("Document Date", date.today())
+st.divider()
 
-st.header("📄 2. Project Overview Section")
-biz_objective = st.text_area("2.1 Business Objective", placeholder="Describe the business problem...", height=100)
-sel_outcomes = st.multiselect("2.2 Key Outcomes Expected", ["Reduce manual effort", "Improve accuracy", "Cost reduction", "Compliance improvement", "Better customer experience"])
-st.subheader("2.3 Stakeholders Information")
-st.session_state.stakeholders["Partner"] = st.data_editor(st.session_state.stakeholders["Partner"], use_container_width=True, key="ed_p")
-st.session_state.stakeholders["Customer"] = st.data_editor(st.session_state.stakeholders["Customer"], use_container_width=True, key="ed_c")
-st.session_state.stakeholders["AWS"] = st.data_editor(st.session_state.stakeholders["AWS"], use_container_width=True, key="ed_a")
-st.session_state.stakeholders["Escalation"] = st.data_editor(st.session_state.stakeholders["Escalation"], use_container_width=True, key="ed_e")
+# --- 2. PROJECT OVERVIEW ---
+st.header("2. Project Overview Section")
+st.subheader("🎯 2.1 Business Objective")
+biz_objective = st.text_area("What business problem is the customer trying to solve?", height=100)
+st.subheader("📈 2.2 Key Outcomes Expected")
+sel_outcomes = st.multiselect("Select outcomes:", ["Reduce manual effort", "Improve accuracy / quality", "Faster turnaround time", "Cost reduction", "Revenue uplift", "Compliance improvement", "Better customer experience", "Scalability validation", "Other (specify)"], default=["Improve accuracy / quality", "Cost reduction"])
 
+st.subheader("👥 2.3 Stakeholders Information")
+st.markdown('<div class="stakeholder-header">Partner Executive Sponsor</div>', unsafe_allow_html=True)
+st.session_state.stakeholders["Partner"] = st.data_editor(st.session_state.stakeholders["Partner"], num_rows="dynamic", key="ed_p")
+st.markdown('<div class="stakeholder-header">Customer Executive Sponsor</div>', unsafe_allow_html=True)
+st.session_state.stakeholders["Customer"] = st.data_editor(st.session_state.stakeholders["Customer"], num_rows="dynamic", key="ed_c")
+st.markdown('<div class="stakeholder-header">AWS Executive Sponsor</div>', unsafe_allow_html=True)
+st.session_state.stakeholders["AWS"] = st.data_editor(st.session_state.stakeholders["AWS"], num_rows="dynamic", key="ed_a")
+st.markdown('<div class="stakeholder-header">Project Escalation Contacts</div>', unsafe_allow_html=True)
+st.session_state.stakeholders["Escalation"] = st.data_editor(st.session_state.stakeholders["Escalation"], num_rows="dynamic", key="ed_e")
+st.divider()
+
+# --- 3. ASSUMPTIONS & DEPENDENCIES ---
 st.header("📋 3. Assumptions & Dependencies")
-sel_deps = st.multiselect("3.1 Customer Dependencies", ["Data availability", "API access", "SME availability", "AWS access", "Security approvals"])
-data_types = st.multiselect("3.2 Data Characteristics", ["Images", "Text", "Audio", "Video", "PDFs", "Streams"])
-key_assumptions = st.text_area("3.3 Key Assumptions", "PoC only, not production-grade. Manual review for edge cases. No real-time SLA commitments.")
+dep_opts = ["Sample data availability", "Historical data availability", "Design / business guidelines finalized", "API access provided", "User access to AWS account", "SME availability for validation", "Network / VPC access", "Security approvals"]
+sel_deps = [opt for opt in dep_opts if st.checkbox(opt, key=f"dep_{opt}")]
+st.subheader("📊 3.2 Data Characteristics")
+data_types = st.multiselect("Data involved:", ["Images", "Text", "PDFs / Documents", "Audio", "Video", "Structured tables", "APIs / Streams"])
+data_meta = {}
+for dt in data_types:
+    with st.expander(f"⚙️ {dt} Details", expanded=True):
+        c1, c2, c3 = st.columns(3)
+        data_meta[dt] = {"Size": c1.text_input(f"{dt} Avg Size", "2 MB"), "Format": c2.text_input(f"{dt} Formats", "JPEG, PNG"), "Vol": c3.text_input(f"{dt} Volume", "100/day")}
+st.subheader("💡 3.3 Key Assumptions")
+sel_ass = [opt for opt in ["PoC only, not production-grade", "Limited data volume", "Rule-based logic acceptable initially", "Manual review for edge cases", "No real-time SLA commitments"] if st.checkbox(opt, key=f"ass_{opt}")]
+custom_ass = st.text_input("Other Assumptions:", key="custom_ass_in")
+st.divider()
 
+# --- 4. SUCCESS CRITERIA ---
 st.header("🎯 4. PoC Success Criteria")
-sel_dims = st.multiselect("4.1 Success Dimensions", ["Accuracy", "Latency", "Cost efficiency", "Usability", "Explainability"])
-val_req = st.radio("4.2 User Validation Requirement", ["Yes - customer validation required", "No - internal validation sufficient"])
+sel_dims = st.multiselect("Dimensions:", ["Accuracy", "Latency", "Usability", "Explainability", "Coverage", "Cost efficiency", "Integration readiness"], default=["Accuracy", "Cost efficiency"])
+val_req = st.radio("Validation Strategy:", ["Yes – customer validation required", "No – internal validation sufficient"])
+st.divider()
 
-st.header("🛠️ 5. Scope of Work – Functional Capabilities")
-sel_caps = st.text_area("5.1 Core Capabilities", "Upload/Ingestion Flow, Compliance & Tagging Flow, Metadata Extraction, Scoring Loop...")
-sel_ints = st.multiselect("5.2 Integrations Required", ["CRM", "ERP", "External APIs", "Internal Databases", "None"])
+# --- 5. SCOPE OF WORK ---
+st.header("🛠️ 5. Scope of Work")
+sel_caps = [c for c in ["Upload / Ingestion", "Processing / Inference", "Metadata extraction", "Scoring / Recommendation", "Feedback loop", "UI display"] if st.checkbox(c, value=True, key=f"cap_{c}")]
+custom_cap = st.text_input("Add Custom Step:", key="custom_cap_in")
+sel_ints = st.multiselect("Integrations:", ["Internal databases", "External APIs", "CRM", "ERP", "Search engine", "Data warehouse", "None"], default=["None"])
+st.divider()
 
+# --- 6. ARCHITECTURE & AWS SERVICES ---
 st.header("🏢 6. Architecture & AWS Services")
-compute_choices = st.selectbox("6.1 Compute & Orchestration", ["AWS Lambda", "Step Functions", "Amazon ECS", "Hybrid"])
-ai_svcs = st.multiselect("6.2 GenAI / ML Services", ["Amazon Bedrock", "Textract", "Rekognition", "Comprehend", "SageMaker"])
-st_svcs = st.multiselect("6.3 Storage & Search", ["Amazon S3", "DynamoDB", "OpenSearch", "Aurora PG Vector"])
-ui_layer = st.selectbox("6.4 UI Layer", ["Streamlit on S3", "CloudFront Static UI", "Demo UI Only", "No UI (API Only)"])
+compute_choices = st.multiselect("Compute Options:", ["AWS Lambda", "Step Functions", "Amazon ECS / EKS(future)", "Hybrid"], default=["AWS Lambda", "Step Functions"])
+ai_svcs = st.multiselect("AI Services:", ["Amazon Bedrock", "Amazon SageMaker", "Rekognition", "Textract", "Comprehend", "Transcribe", "Translate"], default=["Amazon Bedrock"])
+st_svcs = st.multiselect("Storage:", ["Amazon S3", "DynamoDB", "OpenSearch", "RDS", "Vector DB (OpenSearch / Aurora PG)"], default=["Amazon S3"])
+ui_layer = st.selectbox("UI Layer:", ["Streamlit on S3", "CloudFront + Static UI", "Internal demo only", "No UI (API only)"], index=0)
+st.divider()
 
+# --- 7. NFR ---
 st.header("⚙️ 7. Non-Functional Requirements")
-perf = st.selectbox("7.1 Performance Expectations", ["Near real-time", "Batch processing", "SLA-based"])
-sec = st.multiselect("7.2 Security & Compliance", ["IAM-based Access", "Encryption at Rest/Transit", "VPC Deployment", "Audit Logging"])
+perf = st.selectbox("Performance Profile:", ["Batch", "Near real-time", "Real-time"], index=1)
+sec = st.multiselect("Security Controls:", ["IAM-based access", "Encryption at rest", "Encryption in transit", "VPC deployment", "Audit logging", "Compliance alignment"], default=["IAM-based access", "VPC deployment"])
+st.divider()
 
+# --- 8. TIMELINE ---
 st.header("📅 8. Timeline & Phasing")
-poc_dur = st.selectbox("8.1 PoC Duration", ["2 weeks", "4 weeks", "6 weeks", "Custom"])
-st.session_state.timeline_phases = st.data_editor(st.session_state.timeline_phases, num_rows="dynamic", use_container_width=True, key="ed_t")
+poc_dur = st.selectbox("PoC Duration:", ["2 weeks", "4 weeks", "6 weeks", "Custom"])
+st.session_state.timeline_phases = st.data_editor(st.session_state.timeline_phases, num_rows="dynamic", key="ed_t")
+st.divider()
 
-st.header("💰 9. Costing Inputs")
-usage_vol = st.text_input("9.1 Usage Volumes", "e.g., 100 banners per day")
-ownership = st.selectbox("9.2 Cost Ownership", ["Jointly Funded by AWS & Oneture", "AWS Funded", "Partner Funded", "Customer Funded"])
+# --- 9. COSTING ---
+st.header("💰 9. Costing Inputs & Ownership")
+st.info(f"Calculator Link: {CALCULATOR_LINKS.get(sow_key, 'https://calculator.aws')}")
+ownership = st.selectbox("Cost Ownership:", ["Funded by AWS", "Funded by Partner", "Funded by Customer", "Shared"], index=2)
+st.divider()
 
+# --- 10. FINAL OUTPUTS ---
 st.header("🏁 10. Final Outputs")
-delivs = st.multiselect("10.1 Deliverables", ["PoC Architecture", "Working Demo UI", "SOW Document", "Cost Estimate"])
-nxt_steps = st.multiselect("10.2 Post-PoC Next Steps", ["Scale up proposal", "Production roadmap", "Security hardening"])
+delivs = st.multiselect("Deliverables:", ["PoC architecture", "Working demo", "SOW document", "Cost estimate", "Next-phase proposal"], default=["Working demo", "SOW document"])
+nxt = st.multiselect("Next Steps:", ["Production proposal", "Scaling roadmap", "Security review", "Performance optimization", "Model fine-tuning"], default=["Production proposal", "Scaling roadmap"])
 
-# --- OUTPUT GENERATION LOGIC (RESTACKED TO THE 5 CHAPTER FORMAT) ---
-if st.button("✨ Generate Professional SOW", type="primary", use_container_width=True):
-    with st.spinner("Processing document sequence..."):
+# --- MODIFIED GENERATION LOGIC ---
+if st.button("✨ Generate Full SOW", type="primary", use_container_width=True):
+    with st.spinner("Refining document structure..."):
         def get_md(df): return df.to_markdown(index=False)
-        cost_info = SOW_COST_TABLE_MAP.get(sow_key, {"POC": "TBD"})
-        cost_table = "| System | Infra Cost | AWS Cost Calculator Link |\n| --- | --- | --- |\n"
-        for k, v in cost_info.items():
-            cost_table += f"| {k.upper()} | {v} | link |\n"
+        cost_info = SOW_COST_TABLE_MAP.get(sow_key, {})
+        cost_table = "| System | Infra Cost / month | AWS Calculator Cost |\n| --- | --- | --- |\n"
+        for k,v in cost_info.items(): 
+            label = "POC Cost" if k == "poc_cost" else "Prod Cost" if k == "prod_cost" else k
+            cost_table += f"| {label} | {v} | Estimate |\n"
         
+        # RESTRUCTURED PROMPT BASED ON NEW OUTPUT REQUIREMENTS
         prompt = f"""
-        Generate a professional enterprise SOW for {sow_key}. Follow this EXACT numbering for sections:
-
-        # 1 TABLE OF CONTENTS
-        List sections 1 to 5 exactly as structured below.
+        Generate a professional enterprise SOW for {sow_key}. Follow this structure EXACTLY:
 
         # 2 PROJECT OVERVIEW
         ## 2.1 OBJECTIVE
@@ -340,56 +399,62 @@ if st.button("✨ Generate Professional SOW", type="primary", use_container_widt
         ### Project Escalation Contacts
         {get_md(st.session_state.stakeholders["Escalation"])}
         ## 2.3 ASSUMPTIONS & DEPENDENCIES
-        Assumptions: {key_assumptions}. 
-        Customer Dependencies: {', '.join(sel_deps)}. 
-        Data involved: {', '.join(data_types)}.
+        - Customer Dependencies: {', '.join(sel_deps)}
+        - Data Characteristics: {data_meta}
+        - Key Assumptions: {', '.join(sel_ass)} {custom_ass}
         ## 2.4 PROJECT SUCCESS CRITERIA
-        Target Metrics: {', '.join(sel_dims)}. Validation Strategy: {val_req}.
+        - Success Dimensions: {', '.join(sel_dims)}
+        - Validation Strategy: {val_req}
 
         # 3 SCOPE OF WORK - TECHNICAL PROJECT PLAN
+        Create a detailed project plan table showing activities, milestones, and timelines.
         {get_md(st.session_state.timeline_phases)}
-        Note: POC would be demoed iteratively for all the workflows across the {poc_dur}.
+        Also include core capabilities: {', '.join(sel_caps)} and Integrations: {', '.join(sel_ints)}.
 
         # 4 SOLUTION ARCHITECTURE / ARCHITECTURAL DIAGRAM
-        (The mapped diagram image will be placed here)
-        ## Infrastructure Cost Breakdown Basis POC
+        (Describe the technical architecture including {', '.join(compute_choices)}, {', '.join(ai_svcs)}, and {', '.join(st_svcs)}).
+        Include the pricing table:
         {cost_table}
 
         # 5 RESOURCES & COST ESTIMATES
-        Project Funding: {ownership}. Expected Usage: {usage_vol}. 
-        Deliverables: {', '.join(delivs)}. Next Steps: {', '.join(nxt_steps)}.
-        Expected Outcomes: {', '.join(sel_outcomes)}.
+        Detail the professional services resources required and cost ownership: {ownership}.
+        Mention deliverables: {', '.join(delivs)} and Next Steps: {', '.join(nxt)}.
         """
-        payload = {"contents": [{"parts": [{"text": prompt}]}]}
-        res, err = call_gemini_with_retry(payload, api_key)
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}], 
+            "systemInstruction": {"parts": [{"text": "You are an AWS Solutions Architect. Strict numbering 2-5 for main sections. Black text only."}]}
+        }
+        res, err = call_gemini_with_retry(payload, api_key_input=api_key)
         if res:
             st.session_state.generated_sow = res.json()['candidates'][0]['content']['parts'][0]['text']
             st.rerun()
         else: st.error(err)
 
-# --- PREVIEW SECTION ---
+# --- REVIEW & EXPORT ---
 if st.session_state.generated_sow:
-    st.divider()
-    st.subheader("📄 Visual Preview")
-    st.markdown('<div class="sow-preview">', unsafe_allow_html=True)
+    st.divider(); tab_e, tab_p = st.tabs(["✍️ Editor", "📄 Visual Preview"])
+    with tab_e: st.session_state.generated_sow = st.text_area("Modify SOW:", st.session_state.generated_sow, height=600)
+    with tab_p:
+        st.markdown('<div class="sow-preview">', unsafe_allow_html=True)
+        # Prepend the manual Table of Contents for visual preview
+        preview_toc = "## 1 TABLE OF CONTENTS\n- 2 PROJECT OVERVIEW\n- 3 SCOPE OF WORK - TECHNICAL PROJECT PLAN\n- 4 SOLUTION ARCHITECTURE / ARCHITECTURAL DIAGRAM\n- 5 RESOURCES & COST ESTIMATES\n\n---\n"
+        full_content = preview_toc + st.session_state.generated_sow
+        
+        calc_url_p = CALCULATOR_LINKS.get(sow_key, "https://calculator.aws/")
+        p_content = full_content.replace("Estimate", f'<a href="{calc_url_p}" target="_blank">Estimate</a>')
+        
+        # Inject Diagram in Preview at Section 4
+        if "# 4 SOLUTION ARCHITECTURE" in p_content:
+            parts = p_content.split("# 4 SOLUTION ARCHITECTURE")
+            st.markdown(parts[0] + "# 4 SOLUTION ARCHITECTURE / ARCHITECTURAL DIAGRAM", unsafe_allow_html=True)
+            diag_out = SOW_DIAGRAM_MAP.get(sow_key)
+            if diag_out and os.path.exists(diag_out):
+                st.image(diag_out, caption=f"{sow_key} Architecture")
+            st.markdown(parts[1], unsafe_allow_html=True)
+        else: st.markdown(p_content, unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
     
-    p_content = st.session_state.generated_sow
-    calc_url = CALCULATOR_LINKS.get(sow_key, "https://calculator.aws/")
-    p_content = p_content.replace("link", f'[Estimate Link]({calc_url})')
-    
-    # Handle Architecture Image Injection in Preview for Section 4
-    if "# 4 SOLUTION ARCHITECTURE" in p_content:
-        parts = p_content.split("# 4 SOLUTION ARCHITECTURE")
-        st.markdown(parts[0] + "# 4 SOLUTION ARCHITECTURE", unsafe_allow_html=True)
-        diag_out = SOW_DIAGRAM_MAP.get(sow_key)
-        if diag_out and os.path.exists(diag_out):
-            st.image(diag_out, caption=f"{sow_key} Architecture Diagram")
-        st.markdown(parts[1], unsafe_allow_html=True)
-    else:
-        st.markdown(p_content, unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    if st.button("💾 Download Microsoft Word Document", use_container_width=True):
+    if st.button("💾 Prepare Microsoft Word"):
         branding = {"sow_name": sow_key, "customer_logo_bytes": customer_logo.getvalue() if customer_logo else None, "doc_date_str": doc_date.strftime("%d %B %Y")}
         docx_data = create_docx_logic(st.session_state.generated_sow, branding, sow_key)
-        st.download_button("📥 Click to Download (.docx)", docx_data, f"SOW_{sow_key.replace(' ', '_')}.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        st.download_button("📥 Download SOW (.docx)", docx_data, f"SOW_{sow_key.replace(' ', '_')}.docx", use_container_width=True)
