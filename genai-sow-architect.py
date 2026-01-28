@@ -154,7 +154,7 @@ def create_docx_logic(text_content, branding, sow_name):
         for run in p_toc.runs: run.font.name = 'Times New Roman'
     doc.add_page_break()
 
-    # SECTION MAPPING
+    # SECTION MAPPING - UPDATED TO 5 SECTIONS
     headers_map = {
         "2": "PROJECT OVERVIEW",
         "3": "SCOPE OF WORK - TECHNICAL PROJECT PLAN",
@@ -178,7 +178,7 @@ def create_docx_logic(text_content, branding, sow_name):
                 current_id = h_id; break
 
         if current_id:
-            # Page breaks for sections 3, 4, 5 as per PDFs
+            # Section 2 starts right after TOC, but 3, 4, 5 need page breaks
             if current_id in ["3", "4", "5"]: doc.add_page_break()
             h = doc.add_heading(clean_line.upper(), level=1)
             for run in h.runs: 
@@ -276,7 +276,7 @@ def reset_all():
     init_state()
     st.rerun()
 
-# --- SIDEBAR: 10 INPUTS PRESERVED ---
+# --- SIDEBAR: 10 INPUTS PRESERVED EXACTLY ---
 with st.sidebar:
     st.image("https://img.icons8.com/fluency/96/artificial-intelligence.png", width=60)
     st.title("Architect Pro")
@@ -379,9 +379,10 @@ st.header("🏁 10. Final Outputs")
 delivs = st.multiselect("Deliverables:", ["PoC architecture", "Working demo", "SOW document", "Cost estimate", "Next-phase proposal"], default=["Working demo", "SOW document"])
 nxt = st.multiselect("Next Steps:", ["Production proposal", "Scaling roadmap", "Security review", "Performance optimization", "Model fine-tuning"], default=["Production proposal", "Scaling roadmap"])
 
-# --- GENERATION ---
+# --- MODIFIED GENERATION LOGIC ---
 if st.button("✨ Generate Full SOW", type="primary", use_container_width=True):
-    with st.spinner("Analyzing PDF style guides and applying structural logic..."):
+    with st.spinner("Generating structured SOW based on enterprise standards..."):
+        # CUSTOM MD TABLE GENERATOR
         def get_md(df):
             if df.empty: return ""
             headers = "| " + " | ".join(df.columns) + " |"
@@ -395,15 +396,17 @@ if st.button("✨ Generate Full SOW", type="primary", use_container_width=True):
             label = "POC" if k == "poc_cost" else "Production" if k == "prod_cost" else k
             cost_table += f"| {label} | {v} | Estimate |\n"
         
+        # TOPIC SENSITIVE INSTRUCTIONS
         topic_logic = ""
         if "Bot" in sow_key or "Speech" in sow_key:
             topic_logic = "Focus on Agentic workflows (LangGraph), LLM reasoning traces, and persona-mapped responses. Mention RAG (Retrieval Augmented Generation) for document access."
         elif "Image" in sow_key:
             topic_logic = "Focus on automated compliance scoring (0-100), metadata tag extraction (CTA, Brand, Ambassador), and actionable design recommendations."
 
+        # NEW OUTPUT STRUCTURE (2-5 SECTIONS)
         prompt = f"""
-        Generate a professional enterprise SOW for {sow_key}. 
-        STRUCTURE THE OUTPUT EXACTLY AS FOLLOWS (Mirror the Jubilant/Nykaa PDFs):
+        Generate a professional enterprise SOW for {sow_key} ({engagement_type}).
+        FOLLOW THIS STRUCTURE EXACTLY (Match PDF standards):
 
         # 2 PROJECT OVERVIEW
         ## 2.1 OBJECTIVE
@@ -422,7 +425,7 @@ if st.button("✨ Generate Full SOW", type="primary", use_container_width=True):
         ## 2.3 ASSUMPTIONS & DEPENDENCIES
         ### Dependencies
         - Access to: {', '.join(sel_deps)}
-        - Metadata scope: {data_meta}
+        - Data Characteristics: {data_meta}
         ### Assumptions
         - {', '.join(sel_ass)} {custom_ass}
 
@@ -434,32 +437,27 @@ if st.button("✨ Generate Full SOW", type="primary", use_container_width=True):
         Validation Strategy: {val_req}.
 
         # 3 SCOPE OF WORK - TECHNICAL PROJECT PLAN
-        ### Work Phases
-        1. Requirements Gathering & Design (Week 1)
-        2. Component Development & Core Integration (Week 2-3)
-        3. Testing, UI Deployment (Streamlit) & Feedback (Week 3-4)
-        4. Delivery & Demo (Week 4)
-
-        ### Project Timeline
+        Generate a detailed activity/timeline table showing phases and milestones.
         {get_md(st.session_state.timeline_phases)}
+        Include core capabilities: {', '.join(sel_caps)} and Integrations: {', '.join(sel_ints)}.
 
         # 4 SOLUTION ARCHITECTURE / ARCHITECTURAL DIAGRAM
-        (Provide a detailed technical description of the AWS architecture using {', '.join(compute_choices)} and {', '.join(ai_svcs)}).
+        (Describe the technical architecture including {', '.join(compute_choices)}, {', '.join(ai_svcs)}, and {', '.join(st_svcs)}).
         
         ### Pricing Summary
         {cost_table}
 
         {"### Bedrock Pricing Breakdown (Production)" if "Amazon Bedrock" in ai_svcs else ""}
-        (If Bedrock is chosen, generate a detailed production token cost table with mock values for: Number of users/daily, Interactions/user, Input/Output Tokens, and Total Monthly Cost).
+        (If Bedrock is used, include a table with mock values for token costs, interactions, and monthly totals as seen in Jubilant PDF page 6).
 
         # 5 RESOURCES & COST ESTIMATES
-        Project funding details: {ownership}.
-        Professional Deliverables: {', '.join(delivs)}.
-        Roadmap Recommendations: {', '.join(nxt)}.
+        Project funding details and resource requirements: {ownership}.
+        Deliverables: {', '.join(delivs)}.
+        Roadmap: {', '.join(nxt)}.
         """
         payload = {
             "contents": [{"parts": [{"text": prompt}]}], 
-            "systemInstruction": {"parts": [{"text": "You are a senior AWS Solutions Architect. Strict adherence to sections 2-5 numbering. Professional enterprise tone. Black text only."}]}
+            "systemInstruction": {"parts": [{"text": "You are a senior AWS Solutions Architect. Strict adherence to sections 2-5 numbering. Professional enterprise tone. Use tables for costings and sponsors. Black text only."}]}
         }
         res, err = call_gemini_with_retry(payload, api_key_input=api_key)
         if res:
@@ -473,8 +471,10 @@ if st.session_state.generated_sow:
     with tab_e: st.session_state.generated_sow = st.text_area("Modify SOW:", st.session_state.generated_sow, height=600)
     with tab_p:
         st.markdown('<div class="sow-preview">', unsafe_allow_html=True)
+        # Prepend manual TOC for the visual preview to show structure
         preview_toc = "## 1 TABLE OF CONTENTS\n- 2 PROJECT OVERVIEW\n- 3 SCOPE OF WORK - TECHNICAL PROJECT PLAN\n- 4 SOLUTION ARCHITECTURE / ARCHITECTURAL DIAGRAM\n- 5 RESOURCES & COST ESTIMATES\n\n---\n"
         full_content = preview_toc + st.session_state.generated_sow
+        
         calc_url_p = CALCULATOR_LINKS.get(sow_key, "https://calculator.aws/")
         p_content = full_content.replace("Estimate", f'<a href="{calc_url_p}" target="_blank">Estimate</a>')
         
