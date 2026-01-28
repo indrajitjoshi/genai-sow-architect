@@ -112,8 +112,9 @@ def create_docx_logic(text_content, branding, sow_name):
     style.font.size = Pt(11)
     
     # PAGE 1: COVER
-    p = doc.add_paragraph()
-    if os.path.exists(AWS_PN_LOGO): doc.add_picture(AWS_PN_LOGO, width=Inches(1.6))
+    p_logo = doc.add_paragraph()
+    if os.path.exists(AWS_PN_LOGO): 
+        p_logo.add_run().add_picture(AWS_PN_LOGO, width=Inches(1.6))
     doc.add_paragraph("\n" * 3)
     t = doc.add_paragraph(); t.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = t.add_run(branding['sow_name']); run.font.size = Pt(26); run.bold = True; run.font.name = 'Times New Roman'
@@ -137,14 +138,23 @@ def create_docx_logic(text_content, branding, sow_name):
     # PAGE 2: TABLE OF CONTENTS
     h_toc = doc.add_heading("1 TABLE OF CONTENTS", level=1)
     for run in h_toc.runs: run.font.name, run.font.color.rgb = 'Times New Roman', RGBColor(0, 0, 0)
-    # Simple Manual TOC
-    toc_items = ["2 PROJECT OVERVIEW", "3 SCOPE OF WORK - TECHNICAL PROJECT PLAN", "4 SOLUTION ARCHITECTURE / ARCHITECTURAL DIAGRAM", "5 RESOURCES & COST ESTIMATES"]
+    
+    toc_items = [
+        "2 PROJECT OVERVIEW",
+        "  2.1 OBJECTIVE",
+        "  2.2 PROJECT SPONSOR(S) / STAKEHOLDER(S) / PROJECT TEAM",
+        "  2.3 ASSUMPTIONS & DEPENDENCIES",
+        "  2.4 PROJECT SUCCESS CRITERIA",
+        "3 SCOPE OF WORK - TECHNICAL PROJECT PLAN",
+        "4 SOLUTION ARCHITECTURE / ARCHITECTURAL DIAGRAM",
+        "5 RESOURCES & COST ESTIMATES"
+    ]
     for item in toc_items:
         p_toc = doc.add_paragraph(item)
         for run in p_toc.runs: run.font.name = 'Times New Roman'
     doc.add_page_break()
 
-    # NEW SECTION MAPPING
+    # SECTION MAPPING
     headers_map = {
         "2": "PROJECT OVERVIEW",
         "3": "SCOPE OF WORK - TECHNICAL PROJECT PLAN",
@@ -168,22 +178,18 @@ def create_docx_logic(text_content, branding, sow_name):
                 current_id = h_id; break
 
         if current_id:
-            if current_id in ["2", "3", "4", "5"]:
-                if current_id != "2": doc.add_page_break()
-                h = doc.add_heading(clean_line.upper(), level=1)
-                for run in h.runs: 
-                    run.font.name = 'Times New Roman'
-                    run.font.color.rgb = RGBColor(0, 0, 0)
-                
-                # Injection logic for Section 4 Diagram
-                if current_id == "4":
-                    diag = SOW_DIAGRAM_MAP.get(sow_name)
-                    if diag and os.path.exists(diag):
-                        doc.add_picture(diag, width=Inches(5.5))
-                        p_cap = doc.add_paragraph(f"{sow_name} – Architecture Diagram")
-                        p_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                        for run in p_cap.runs: run.font.name, run.font.color.rgb = 'Times New Roman', RGBColor(0,0,0)
-
+            if current_id != "2": doc.add_page_break()
+            h = doc.add_heading(clean_line.upper(), level=1)
+            for run in h.runs: 
+                run.font.name, run.font.color.rgb = 'Times New Roman', RGBColor(0, 0, 0)
+            
+            if current_id == "4":
+                diag = SOW_DIAGRAM_MAP.get(sow_name)
+                if diag and os.path.exists(diag):
+                    doc.add_picture(diag, width=Inches(5.5))
+                    p_cap = doc.add_paragraph(f"{sow_name} – Architecture Diagram")
+                    p_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    for run in p_cap.runs: run.font.name, run.font.color.rgb = 'Times New Roman', RGBColor(0,0,0)
             i += 1; continue
             
         # Tables processing
@@ -209,11 +215,10 @@ def create_docx_logic(text_content, branding, sow_name):
                                 add_hyperlink(p_r, "Estimate", calc_url)
                             else:
                                 r_r = p_r.add_run(c_text)
-                                r_r.font.name = 'Times New Roman'
-                                r_r.font.color.rgb = RGBColor(0, 0, 0)
+                                r_r.font.name, r_r.font.color.rgb = 'Times New Roman', RGBColor(0, 0, 0)
             continue
 
-        # Normal text and subheadings
+        # Subheadings
         if line.startswith('## ') or line.startswith('### ') or re.match(r'^\d+\.\d+\s+', clean_line): 
             lvl = 2 if (line.startswith('## ') or re.match(r'^\d+\.\d+\s+', clean_line)) else 3
             h = doc.add_heading(clean_line, level=lvl)
@@ -226,7 +231,7 @@ def create_docx_logic(text_content, branding, sow_name):
             p_n = doc.add_paragraph()
             run_n = p_n.add_run(clean_line)
             run_n.font.name, run_n.font.color.rgb = 'Times New Roman', RGBColor(0, 0, 0)
-            if any(k in upper for k in ["SPONSOR", "CONTACTS", "OBJECTIVE", "SUCCESS CRITERIA"]):
+            if any(k in upper for k in ["SPONSOR", "CONTACTS", "OBJECTIVE", "DEPENDENCIES"]):
                 run_n.bold = True
         i += 1
         
@@ -269,7 +274,7 @@ def reset_all():
     init_state()
     st.rerun()
 
-# --- SIDEBAR: 10 INPUTS PRESERVED EXACTLY ---
+# --- SIDEBAR: 10 INPUTS PRESERVED ---
 with st.sidebar:
     st.image("https://img.icons8.com/fluency/96/artificial-intelligence.png", width=60)
     st.title("Architect Pro")
@@ -372,28 +377,25 @@ st.header("🏁 10. Final Outputs")
 delivs = st.multiselect("Deliverables:", ["PoC architecture", "Working demo", "SOW document", "Cost estimate", "Next-phase proposal"], default=["Working demo", "SOW document"])
 nxt = st.multiselect("Next Steps:", ["Production proposal", "Scaling roadmap", "Security review", "Performance optimization", "Model fine-tuning"], default=["Production proposal", "Scaling roadmap"])
 
-# --- MODIFIED GENERATION LOGIC ---
+# --- GENERATION ---
 if st.button("✨ Generate Full SOW", type="primary", use_container_width=True):
-    with st.spinner("Refining document structure..."):
-        # CUSTOM MD TABLE GENERATOR TO FIX tabulate IMPORT ERROR
+    with st.spinner("Refining structure to match enterprise PDF standards..."):
         def get_md(df):
             if df.empty: return ""
             headers = "| " + " | ".join(df.columns) + " |"
             sep = "| " + " | ".join(["---"] * len(df.columns)) + " |"
-            rows = []
-            for _, row in df.iterrows():
-                rows.append("| " + " | ".join(str(val) for val in row) + " |")
+            rows = ["| " + " | ".join(str(val) for val in row) + " |" for _, row in df.iterrows()]
             return "\n".join([headers, sep] + rows)
             
         cost_info = SOW_COST_TABLE_MAP.get(sow_key, {})
         cost_table = "| System | Infra Cost / month | AWS Calculator Cost |\n| --- | --- | --- |\n"
         for k,v in cost_info.items(): 
-            label = "POC Cost" if k == "poc_cost" else "Prod Cost" if k == "prod_cost" else k
+            label = "POC" if k == "poc_cost" else "Production" if k == "prod_cost" else k
             cost_table += f"| {label} | {v} | Estimate |\n"
         
-        # RESTRUCTURED PROMPT BASED ON NEW OUTPUT REQUIREMENTS
         prompt = f"""
-        Generate a professional enterprise SOW for {sow_key}. Follow this structure EXACTLY:
+        Generate a professional enterprise SOW for {sow_key} for {final_industry}.
+        Use the following hierarchy exactly:
 
         # 2 PROJECT OVERVIEW
         ## 2.1 OBJECTIVE
@@ -408,30 +410,40 @@ if st.button("✨ Generate Full SOW", type="primary", use_container_width=True):
         ### Project Escalation Contacts
         {get_md(st.session_state.stakeholders["Escalation"])}
         ## 2.3 ASSUMPTIONS & DEPENDENCIES
-        - Customer Dependencies: {', '.join(sel_deps)}
+        - Dependencies: {', '.join(sel_deps)}
         - Data Characteristics: {data_meta}
-        - Key Assumptions: {', '.join(sel_ass)} {custom_ass}
+        - Assumptions: {', '.join(sel_ass)} {custom_ass}
         ## 2.4 PROJECT SUCCESS CRITERIA
-        - Success Dimensions: {', '.join(sel_dims)}
-        - Validation Strategy: {val_req}
+        List Success Criteria including demonstrations (Persona mapping, resolution bot) and expected results (Conversation flow demo, reasoning traces).
+        Metrics: {', '.join(sel_dims)}.
+        Validation: {val_req}.
 
         # 3 SCOPE OF WORK - TECHNICAL PROJECT PLAN
-        Create a detailed project plan table showing activities, milestones, and timelines.
+        Describe the work phases:
+        1. Requirements Gathering & Design
+        2. Component Development & Integration
+        3. Testing, UI (Streamlit/Gadio) & Feedback
+        4. Delivery & Demonstration
+        
+        Technical Timeline Table:
         {get_md(st.session_state.timeline_phases)}
-        Also include core capabilities: {', '.join(sel_caps)} and Integrations: {', '.join(sel_ints)}.
+        Core functional capabilities: {', '.join(sel_caps)}.
 
         # 4 SOLUTION ARCHITECTURE / ARCHITECTURAL DIAGRAM
-        (Describe the technical architecture including {', '.join(compute_choices)}, {', '.join(ai_svcs)}, and {', '.join(st_svcs)}).
-        Include the pricing table:
+        Technical description of the AWS architecture using {', '.join(compute_choices)}, {', '.join(ai_svcs)}, and {', '.join(st_svcs)}.
+        Cost Summary Table:
         {cost_table}
+        {"### Bedrock Pricing Breakdown" if "Amazon Bedrock" in ai_svcs else ""}
+        (Provide a detailed table for token costs if Bedrock is used, similar to enterprise standards).
 
         # 5 RESOURCES & COST ESTIMATES
-        Detail the professional services resources required and cost ownership: {ownership}.
-        Mention deliverables: {', '.join(delivs)} and Next Steps: {', '.join(nxt)}.
+        The project development costs are funded jointly by {ownership}.
+        Professional services deliverables: {', '.join(delivs)}.
+        Post-PoC Roadmap: {', '.join(nxt)}.
         """
         payload = {
             "contents": [{"parts": [{"text": prompt}]}], 
-            "systemInstruction": {"parts": [{"text": "You are an AWS Solutions Architect. Strict numbering 2-5 for main sections. Black text only."}]}
+            "systemInstruction": {"parts": [{"text": "You are a senior AWS Solutions Architect. Strict adherence to sections 2-5 numbering. Professional enterprise tone. Use tables for costings and sponsors."}]}
         }
         res, err = call_gemini_with_retry(payload, api_key_input=api_key)
         if res:
@@ -445,14 +457,11 @@ if st.session_state.generated_sow:
     with tab_e: st.session_state.generated_sow = st.text_area("Modify SOW:", st.session_state.generated_sow, height=600)
     with tab_p:
         st.markdown('<div class="sow-preview">', unsafe_allow_html=True)
-        # Prepend the manual Table of Contents for visual preview
         preview_toc = "## 1 TABLE OF CONTENTS\n- 2 PROJECT OVERVIEW\n- 3 SCOPE OF WORK - TECHNICAL PROJECT PLAN\n- 4 SOLUTION ARCHITECTURE / ARCHITECTURAL DIAGRAM\n- 5 RESOURCES & COST ESTIMATES\n\n---\n"
         full_content = preview_toc + st.session_state.generated_sow
-        
         calc_url_p = CALCULATOR_LINKS.get(sow_key, "https://calculator.aws/")
         p_content = full_content.replace("Estimate", f'<a href="{calc_url_p}" target="_blank">Estimate</a>')
         
-        # Inject Diagram in Preview at Section 4
         if "# 4 SOLUTION ARCHITECTURE" in p_content:
             parts = p_content.split("# 4 SOLUTION ARCHITECTURE")
             st.markdown(parts[0] + "# 4 SOLUTION ARCHITECTURE / ARCHITECTURAL DIAGRAM", unsafe_allow_html=True)
