@@ -111,7 +111,7 @@ def create_docx_logic(text_content, branding, sow_name):
     style.font.name = 'Times New Roman'
     style.font.size = Pt(11)
     
-    # PAGE 1: COVER
+    # PAGE 1: COVER (Standard Enterprise Format)
     p_logo = doc.add_paragraph()
     if os.path.exists(AWS_PN_LOGO): 
         p_logo.add_run().add_picture(AWS_PN_LOGO, width=Inches(1.6))
@@ -135,7 +135,7 @@ def create_docx_logic(text_content, branding, sow_name):
     run_dt = dt.add_run(branding["doc_date_str"]); run_dt.bold = True; run_dt.font.name = 'Times New Roman'
     doc.add_page_break()
 
-    # PAGE 2: TABLE OF CONTENTS
+    # PAGE 2: TABLE OF CONTENTS (As per PDF Structure)
     h_toc = doc.add_heading("1 TABLE OF CONTENTS", level=1)
     for run in h_toc.runs: run.font.name, run.font.color.rgb = 'Times New Roman', RGBColor(0, 0, 0)
     
@@ -178,11 +178,13 @@ def create_docx_logic(text_content, branding, sow_name):
                 current_id = h_id; break
 
         if current_id:
-            if current_id != "2": doc.add_page_break()
+            # Main sections start on new pages (except section 2 which is right after TOC)
+            if current_id in ["3", "4", "5"]: doc.add_page_break()
             h = doc.add_heading(clean_line.upper(), level=1)
             for run in h.runs: 
                 run.font.name, run.font.color.rgb = 'Times New Roman', RGBColor(0, 0, 0)
             
+            # Injection logic for Section 4 Diagram
             if current_id == "4":
                 diag = SOW_DIAGRAM_MAP.get(sow_name)
                 if diag and os.path.exists(diag):
@@ -192,7 +194,7 @@ def create_docx_logic(text_content, branding, sow_name):
                     for run in p_cap.runs: run.font.name, run.font.color.rgb = 'Times New Roman', RGBColor(0,0,0)
             i += 1; continue
             
-        # Tables processing
+        # Tables processing (Sponsors, Timeline, Pricing)
         if line.startswith('|') and i + 1 < len(lines) and lines[i+1].strip().startswith('|'):
             table_lines = []
             while i < len(lines) and lines[i].strip().startswith('|'):
@@ -218,7 +220,7 @@ def create_docx_logic(text_content, branding, sow_name):
                                 r_r.font.name, r_r.font.color.rgb = 'Times New Roman', RGBColor(0, 0, 0)
             continue
 
-        # Subheadings
+        # Subheadings (2.1, 2.2, etc.)
         if line.startswith('## ') or line.startswith('### ') or re.match(r'^\d+\.\d+\s+', clean_line): 
             lvl = 2 if (line.startswith('## ') or re.match(r'^\d+\.\d+\s+', clean_line)) else 3
             h = doc.add_heading(clean_line, level=lvl)
@@ -274,7 +276,7 @@ def reset_all():
     init_state()
     st.rerun()
 
-# --- SIDEBAR: 10 INPUTS PRESERVED ---
+# --- SIDEBAR: 10 INPUTS PRESERVED EXACTLY ---
 with st.sidebar:
     st.image("https://img.icons8.com/fluency/96/artificial-intelligence.png", width=60)
     st.title("Architect Pro")
@@ -377,9 +379,9 @@ st.header("🏁 10. Final Outputs")
 delivs = st.multiselect("Deliverables:", ["PoC architecture", "Working demo", "SOW document", "Cost estimate", "Next-phase proposal"], default=["Working demo", "SOW document"])
 nxt = st.multiselect("Next Steps:", ["Production proposal", "Scaling roadmap", "Security review", "Performance optimization", "Model fine-tuning"], default=["Production proposal", "Scaling roadmap"])
 
-# --- GENERATION ---
+# --- MODIFIED GENERATION LOGIC ---
 if st.button("✨ Generate Full SOW", type="primary", use_container_width=True):
-    with st.spinner("Refining structure to match enterprise PDF standards..."):
+    with st.spinner("Analyzing PDF style guides and applying topic-specific logic..."):
         def get_md(df):
             if df.empty: return ""
             headers = "| " + " | ".join(df.columns) + " |"
@@ -393,9 +395,18 @@ if st.button("✨ Generate Full SOW", type="primary", use_container_width=True):
             label = "POC" if k == "poc_cost" else "Production" if k == "prod_cost" else k
             cost_table += f"| {label} | {v} | Estimate |\n"
         
+        # TOPIC SENSITIVE INSTRUCTIONS
+        topic_logic = ""
+        if "Bot" in sow_key or "Speech" in sow_key:
+            topic_logic = "Focus on Agentic workflows (LangGraph), LLM reasoning traces, and persona-mapped responses. Mention RAG (Retrieval Augmented Generation) for document access."
+        elif "Image" in sow_key:
+            topic_logic = "Focus on automated compliance scoring (0-100), metadata tag extraction (CTA, Brand, Ambassador), and actionable design recommendations."
+
         prompt = f"""
-        Generate a professional enterprise SOW for {sow_key} for {final_industry}.
-        Use the following hierarchy exactly:
+        Generate a professional enterprise SOW for {sow_key} ({engagement_type}) for the {final_industry} industry.
+        Style Guide: Use the tone and formatting found in Jubilant and Nykaa AWS SOW documents.
+
+        {topic_logic}
 
         # 2 PROJECT OVERVIEW
         ## 2.1 OBJECTIVE
@@ -410,40 +421,41 @@ if st.button("✨ Generate Full SOW", type="primary", use_container_width=True):
         ### Project Escalation Contacts
         {get_md(st.session_state.stakeholders["Escalation"])}
         ## 2.3 ASSUMPTIONS & DEPENDENCIES
-        - Dependencies: {', '.join(sel_deps)}
-        - Data Characteristics: {data_meta}
-        - Assumptions: {', '.join(sel_ass)} {custom_ass}
+        ### Dependencies
+        - Access to: {', '.join(sel_deps)}
+        - Data Meta: {data_meta}
+        ### Assumptions
+        - {', '.join(sel_ass)} {custom_ass}
         ## 2.4 PROJECT SUCCESS CRITERIA
-        List Success Criteria including demonstrations (Persona mapping, resolution bot) and expected results (Conversation flow demo, reasoning traces).
-        Metrics: {', '.join(sel_dims)}.
-        Validation: {val_req}.
+        Detail demonstration goals and expected results.
+        KPIs for: {', '.join(sel_dims)}. Validation: {val_req}.
 
         # 3 SCOPE OF WORK - TECHNICAL PROJECT PLAN
-        Describe the work phases:
-        1. Requirements Gathering & Design
-        2. Component Development & Integration
-        3. Testing, UI (Streamlit/Gadio) & Feedback
-        4. Delivery & Demonstration
+        Create a detailed work phase breakdown including:
+        1. Requirements Gathering & Design (Week 1)
+        2. Development & Core Integration (Week 2-3)
+        3. Testing, Validation & UI (Streamlit/Gradio)
+        4. Delivery & Demo
         
         Technical Timeline Table:
         {get_md(st.session_state.timeline_phases)}
-        Core functional capabilities: {', '.join(sel_caps)}.
+        Core functional capabilities to include: {', '.join(sel_caps)}.
 
         # 4 SOLUTION ARCHITECTURE / ARCHITECTURAL DIAGRAM
-        Technical description of the AWS architecture using {', '.join(compute_choices)}, {', '.join(ai_svcs)}, and {', '.join(st_svcs)}.
-        Cost Summary Table:
+        Technical summary using {', '.join(compute_choices)}, {', '.join(ai_svcs)}, and {', '.join(st_svcs)}.
+        Include the Pricing Summary table:
         {cost_table}
-        {"### Bedrock Pricing Breakdown" if "Amazon Bedrock" in ai_svcs else ""}
-        (Provide a detailed table for token costs if Bedrock is used, similar to enterprise standards).
+        {"### Bedrock Pricing Breakdown (Production)" if "Amazon Bedrock" in ai_svcs else ""}
+        (If Bedrock is used, include a table with mock values for Input/Output tokens, Interactions/user, and Total Daily/Monthly costs as seen in Jubilant SOW page 6).
 
         # 5 RESOURCES & COST ESTIMATES
-        The project development costs are funded jointly by {ownership}.
-        Professional services deliverables: {', '.join(delivs)}.
-        Post-PoC Roadmap: {', '.join(nxt)}.
+        Project funding details: {ownership}.
+        Professional deliverables: {', '.join(delivs)}.
+        Roadmap: {', '.join(nxt)}.
         """
         payload = {
             "contents": [{"parts": [{"text": prompt}]}], 
-            "systemInstruction": {"parts": [{"text": "You are a senior AWS Solutions Architect. Strict adherence to sections 2-5 numbering. Professional enterprise tone. Use tables for costings and sponsors."}]}
+            "systemInstruction": {"parts": [{"text": "You are a senior AWS Solutions Architect. Adhere to sections 2-5. Use professional enterprise language. Black text only."}]}
         }
         res, err = call_gemini_with_retry(payload, api_key_input=api_key)
         if res:
@@ -476,3 +488,4 @@ if st.session_state.generated_sow:
         branding = {"sow_name": sow_key, "customer_logo_bytes": customer_logo.getvalue() if customer_logo else None, "doc_date_str": doc_date.strftime("%d %B %Y")}
         docx_data = create_docx_logic(st.session_state.generated_sow, branding, sow_key)
         st.download_button("📥 Download SOW (.docx)", docx_data, f"SOW_{sow_key.replace(' ', '_')}.docx", use_container_width=True)
+
